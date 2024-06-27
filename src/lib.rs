@@ -1,5 +1,29 @@
 use std::collections::HashMap;
+use regex::Regex;
 
+lazy_static::lazy_static! {
+    static ref METRIC_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$").unwrap();
+    static ref LABEL_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
+}
+
+/// A trait for rendering a Prometheus metric value into a string.
+pub trait RenderableValue {
+    fn render(&self) -> String;
+}
+
+impl RenderableValue for i64 {
+    fn render(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl RenderableValue for f64 {
+    fn render(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+/// Sample holds a single measurement of metrics
 pub struct Sample {
     labels: HashMap<String, String>,
     value: Box<dyn RenderableValue>,
@@ -14,45 +38,8 @@ impl Sample {
     }
 }
 
-pub trait RenderIntoMetrics {
-    fn render_into_metrics(&self) -> String;
-}
-
-#[derive(Clone, Debug)]
-pub enum MetricType {
-    Counter,
-    Gauge,
-    Histogram,
-}
-
-impl std::fmt::Display for MetricType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MetricType::Counter => write!(f, "counter"),
-            MetricType::Gauge => write!(f, "gauge"),
-            MetricType::Histogram => write!(f, "histogram"),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MetricDef {
-    name: String,
-    help: String,
-    metric_type: MetricType,
-}
-
-/// should not fail
-pub trait ToMetricDef {
-    fn to_metric_def(&self) -> MetricDef;
-}
-
-pub enum Error {
-    MetricsConvertError(()),
-}
-
 impl std::fmt::Display for Sample {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut labels = self
             .labels
             .iter()
@@ -69,6 +56,90 @@ impl std::fmt::Display for Sample {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Error {
+    /// InvalidMetricName means the metric name doesn't comply with
+    /// the Prometheus data model
+    ///
+    /// For more details, see
+    /// https://prometheus.io/docs/concepts/data_model/
+    InvalidMetricName(String),
+
+    /// InvalidLabelName means the label name doesn't comply with the
+    /// Prometheus data model.
+    ///
+    /// For more details, see
+    /// https://prometheus.io/docs/concepts/data_model/
+    InvalidLabelName(String),
+}
+
+/// Internal trait for rendering a collection of metrics into a
+/// string.
+pub trait RenderIntoMetrics {
+    fn render_into_metrics(&self) -> String;
+}
+
+#[derive(Clone, Debug)]
+pub enum MetricType {
+    /// A counter is a cumulative metric that represents a single
+    /// monotonically increasing counter whose value can only increase
+    /// or be reset to zero on restart.
+    ///
+    /// This library doesn't distinguish between a counter and other
+    /// metric types. It's your responsibility to ensure that the
+    /// counter only increases.
+    Counter,
+
+    /// A gauge is a metric that represents a single numerical value
+    /// that can arbitrarily go up and down.
+    Gauge,
+
+    /// A histogram samples observations (usually things like request
+    /// durations or response sizes) and counts them in configurable
+    /// buckets.
+    Histogram,
+}
+
+impl std::fmt::Display for MetricType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            MetricType::Counter => write!(f, "counter"),
+            MetricType::Gauge => write!(f, "gauge"),
+            MetricType::Histogram => write!(f, "histogram"),
+        }
+    }
+}
+
+/// MetricDef represents a metric definition.
+///
+/// A metric definition consists of a name, a help string, and a
+/// metric type. The samples are dynaically added on the rendering
+/// phase.
+#[derive(Clone, Debug)]
+pub struct MetricDef {
+    name: String,
+    help: String,
+    metric_type: MetricType,
+}
+
+impl MetricDef {
+    pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
+        if !METRIC_NAME_RE.is_match(name) {
+            return Err(Error::InvalidMetricName(name.to_string()));
+        }
+
+        Ok(Self {
+            name: name.to_string(),
+            help: help.to_string(),
+            metric_type,
+        })
+    }
+}
+
+pub trait ToMetricDef {
+    fn to_metric_def(&self) -> MetricDef;
+}
+
 impl<K: ToMetricDef> RenderIntoMetrics for HashMap<K, Vec<Sample>> {
     fn render_into_metrics(&self) -> String {
         let mut all_metrics: Vec<String> = Vec::with_capacity(self.keys().len());
@@ -83,6 +154,8 @@ impl<K: ToMetricDef> RenderIntoMetrics for HashMap<K, Vec<Sample>> {
             }
 
             // TODO make sure no same labels exist?
+            // TODO: match labels with the regexp
+            // TODO: make sure there are no control characters in the labels values
 
             let rendered = format!(
                 "# HELP {} {}\n# TYPE {} {}\n{}\n",
@@ -97,22 +170,6 @@ impl<K: ToMetricDef> RenderIntoMetrics for HashMap<K, Vec<Sample>> {
         }
 
         all_metrics.join("\n")
-    }
-}
-
-pub trait RenderableValue {
-    fn render(&self) -> String;
-}
-
-impl RenderableValue for i64 {
-    fn render(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl RenderableValue for f64 {
-    fn render(&self) -> String {
-        format!("{}", self)
     }
 }
 
@@ -138,21 +195,21 @@ mod tests {
     impl ToMetricDef for CosmosMetric {
         fn to_metric_def(&self) -> MetricDef {
             match self {
-                CosmosMetric::WorkerHealth => MetricDef {
-                    name: "worker_health".to_string(),
-                    help: "worker health".to_string(),
-                    metric_type: MetricType::Gauge,
-                },
-                CosmosMetric::ChainHeight => MetricDef {
-                    name: "cosmos_height".to_string(),
-                    help: "cosmos height".to_string(),
-                    metric_type: MetricType::Gauge,
-                },
-                CosmosMetric::SomeDeltaShit => MetricDef {
-                    name: "cosmos_delta".to_string(),
-                    help: "cosmos delta".to_string(),
-                    metric_type: MetricType::Gauge,
-                },
+                CosmosMetric::WorkerHealth => MetricDef::new(
+                    "worker_health",
+                    "worker health",
+                    MetricType::Gauge,
+                ).unwrap(),
+                CosmosMetric::ChainHeight => MetricDef::new(
+                    "cosmos_height",
+                    "cosmos height",
+                    MetricType::Gauge,
+                ).unwrap(),
+                CosmosMetric::SomeDeltaShit => MetricDef::new(
+                    "cosmos_delta",
+                    "cosmos delta",
+                    MetricType::Gauge,
+                ).unwrap(),
             }
         }
     }
