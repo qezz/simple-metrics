@@ -51,6 +51,16 @@ impl RenderableValue for f64 {
     }
 }
 
+impl RenderableValue for bool {
+    fn render(&self) -> String {
+        if *self {
+            1_i64.render()
+        } else {
+            0_i64.render()
+        }
+    }
+}
+
 /// Sample holds a single measurement of metrics
 pub struct Sample {
     labels: Labels,
@@ -329,7 +339,7 @@ mod tests {
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
-                Sample::new(&common, if s.health { 1 } else { 0 }).unwrap(),
+                Sample::new(&common, s.health).unwrap(),
             );
 
             let mut lbs = Labels::new();
