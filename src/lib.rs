@@ -24,6 +24,16 @@ impl RenderIntoMetrics for Labels {
     }
 }
 
+pub fn check_labels(labels: &Labels) -> Result<(), Error> {
+    for name in labels.keys() {
+        if !LABEL_NAME_RE.is_match(name) {
+            return Err(Error::InvalidLabelName(name.to_string()));
+        }
+    }
+
+    Ok(())
+}
+
 /// A trait for rendering a Prometheus metric value into a string.
 pub trait RenderableValue {
     fn render(&self) -> String;
@@ -48,11 +58,13 @@ pub struct Sample {
 }
 
 impl Sample {
-    pub fn new<T: RenderableValue + 'static>(labels: &Labels, value: T) -> Self {
-        Self {
+    pub fn new<T: RenderableValue + 'static>(labels: &Labels, value: T) -> Result<Self, Error> {
+        check_labels(labels)?;
+
+        Ok(Self {
             labels: labels.clone(),
             value: Box::new(value),
-        }
+        })
     }
 }
 
@@ -179,10 +191,11 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         to_metric: K,
         labels: &Labels,
         value: V,
-    ) {
-        let sample = Sample::new(labels, value);
-
+    ) -> Result<(), Error> {
+        let sample = Sample::new(labels, value)?;
         self.add_sample(to_metric, sample);
+
+        Ok(())
     }
 }
 
@@ -268,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn simple2() {
+    fn simple() {
         let states = vec![
             State {
                 name: "a".into(),
@@ -316,25 +329,33 @@ mod tests {
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
-                Sample::new(&common, if s.health { 1 } else { 0 }),
+                Sample::new(&common, if s.health { 1 } else { 0 }).unwrap(),
             );
 
             let mut lbs = Labels::new();
             lbs.insert("client".to_string(), s.client.clone());
             lbs.extend(common.clone());
 
-            store.add_value(ServiceMetric::ServiceHeight, &lbs, s.height);
+            store
+                .add_value(ServiceMetric::ServiceHeight, &lbs, s.height)
+                .expect("valid");
             if let Some(maybe) = s.maybe {
-                store.add_value(ServiceMetric::Maybe, &lbs, maybe);
+                store
+                    .add_value(ServiceMetric::Maybe, &lbs, maybe)
+                    .expect("valid");
             }
 
             let mut lbs_p = lbs.clone();
             lbs_p.insert("type".into(), "pos".into());
-            store.add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta);
+            store
+                .add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta)
+                .expect("valid");
 
             let mut lbs_n = lbs.clone();
             lbs_n.insert("type".into(), "neg".into());
-            store.add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta);
+            store
+                .add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta)
+                .expect("valid");
         }
 
         let actual = store.render_into_metrics();
