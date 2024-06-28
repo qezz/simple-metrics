@@ -72,7 +72,6 @@ pub trait RenderIntoMetrics {
     fn render_into_metrics(&self) -> String;
 }
 
-
 /// Metric type
 ///
 /// This library doesn't distinguish between a counter, gauge and
@@ -132,6 +131,7 @@ impl MetricDef {
     }
 }
 
+// TODO: Replace with From<X> for MetricDef
 pub trait ToMetricDef {
     fn to_metric_def(&self) -> MetricDef;
 }
@@ -192,14 +192,12 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
                 let mut labels: Labels = s.labels.clone();
                 labels.extend(self.static_labels.clone());
 
-                let r = format!(
+                metrics.push(format!(
                     "{}{{{}}} {}",
                     metric_def.name,
                     labels.render_into_metrics(),
                     s.value.render()
-                );
-
-                metrics.push(r)
+                ))
             }
 
             // TODO make sure no same labels exist?
@@ -237,8 +235,8 @@ mod tests {
     #[derive(Eq, Hash, PartialEq, Ord, PartialOrd)]
     pub enum ServiceMetric {
         WorkerHealth,
-        ChainHeight,
-        SomeDeltaShit,
+        ServiceHeight,
+        ServiceDelta,
     }
 
     impl ToMetricDef for ServiceMetric {
@@ -247,26 +245,10 @@ mod tests {
                 ServiceMetric::WorkerHealth => {
                     MetricDef::new("worker_health", "worker health", MetricType::Gauge).unwrap()
                 }
-                ServiceMetric::ChainHeight => {
+                ServiceMetric::ServiceHeight => {
                     MetricDef::new("service_height", "service height", MetricType::Gauge).unwrap()
                 }
-                ServiceMetric::SomeDeltaShit => {
-                    MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
-                }
-            }
-        }
-    }
-
-    impl From<ServiceMetric> for MetricDef {
-        fn from(value: ServiceMetric) -> Self {
-            match value {
-                ServiceMetric::WorkerHealth => {
-                    MetricDef::new("worker_health", "worker health", MetricType::Gauge).unwrap()
-                }
-                ServiceMetric::ChainHeight => {
-                    MetricDef::new("service_height", "service height", MetricType::Gauge).unwrap()
-                }
-                ServiceMetric::SomeDeltaShit => {
+                ServiceMetric::ServiceDelta => {
                     MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
                 }
             }
@@ -325,22 +307,46 @@ mod tests {
             lbs.insert("client".to_string(), s.client.clone());
             lbs.extend(common.clone());
 
-            store.add_value(ServiceMetric::ChainHeight, &lbs, s.height);
+            store.add_value(ServiceMetric::ServiceHeight, &lbs, s.height);
 
-            let mut lbs_s = lbs.clone();
-            lbs_s.insert("type".into(), "pos".into());
-            store.add_value(ServiceMetric::SomeDeltaShit, &lbs_s, s.delta);
+            let mut lbs_p = lbs.clone();
+            lbs_p.insert("type".into(), "pos".into());
+            store.add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta);
 
-            let mut lbs_s = lbs.clone();
-            lbs_s.insert("type".into(), "neg".into());
-            store.add_value(ServiceMetric::SomeDeltaShit, &lbs_s, -s.delta);
+            let mut lbs_n = lbs.clone();
+            lbs_n.insert("type".into(), "neg".into());
+            store.add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta);
         }
 
         let actual = store.render_into_metrics();
 
         println!("{}", actual);
 
-        let expected = "";
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+worker_health{name="a",process="simple-metrics"} 1
+worker_health{name="b",process="simple-metrics"} 1
+worker_health{name="c",process="simple-metrics"} 1
+worker_health{name="d",process="simple-metrics"} 0
+
+# HELP service_height service height
+# TYPE service_height gauge
+service_height{client="woot",name="a",process="simple-metrics"} 100
+service_height{client="woot",name="b",process="simple-metrics"} 200
+service_height{client="meh",name="c",process="simple-metrics"} 300
+service_height{client="meh",name="d",process="simple-metrics"} 0
+
+# HELP service_delta service delta
+# TYPE service_delta gauge
+service_delta{client="woot",name="a",process="simple-metrics",type="pos"} 1
+service_delta{client="woot",name="a",process="simple-metrics",type="neg"} -1
+service_delta{client="woot",name="b",process="simple-metrics",type="pos"} 2.2
+service_delta{client="woot",name="b",process="simple-metrics",type="neg"} -2.2
+service_delta{client="meh",name="c",process="simple-metrics",type="pos"} 3
+service_delta{client="meh",name="c",process="simple-metrics",type="neg"} -3
+service_delta{client="meh",name="d",process="simple-metrics",type="pos"} 291283791287391300000
+service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283791287391300000
+"#;
         assert_eq!(actual, expected);
     }
 }
