@@ -6,7 +6,22 @@ lazy_static::lazy_static! {
     static ref LABEL_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
 }
 
+/// Internal trait for rendering a collection of metrics into a
+/// string.
+pub trait RenderIntoMetrics {
+    fn render_into_metrics(&self) -> String;
+}
+
 type Labels = BTreeMap<String, String>;
+
+impl RenderIntoMetrics for Labels {
+    fn render_into_metrics(&self) -> String {
+        self.iter()
+            .map(|(k, v)| format!(r#"{}="{}""#, k, v))
+            .collect::<Vec<String>>()
+            .join(",")
+    }
+}
 
 /// A trait for rendering a Prometheus metric value into a string.
 pub trait RenderableValue {
@@ -40,15 +55,6 @@ impl Sample {
     }
 }
 
-impl RenderIntoMetrics for Labels {
-    fn render_into_metrics(&self) -> String {
-        self.iter()
-            .map(|(k, v)| format!(r#"{}="{}""#, k, v))
-            .collect::<Vec<String>>()
-            .join(",")
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Error {
     /// InvalidMetricName means the metric name doesn't comply with
@@ -64,12 +70,6 @@ pub enum Error {
     /// For more details, see
     /// https://prometheus.io/docs/concepts/data_model/
     InvalidLabelName(String),
-}
-
-/// Internal trait for rendering a collection of metrics into a
-/// string.
-pub trait RenderIntoMetrics {
-    fn render_into_metrics(&self) -> String;
 }
 
 /// Metric type
@@ -201,7 +201,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
             }
 
             // TODO make sure no same labels exist?
-            // TODO match labels with the regexp
+            // TODO match labels keys with the regexp
             // TODO make sure there are no control characters in the labels values
 
             let rendered = format!(
@@ -230,6 +230,7 @@ mod tests {
         health: bool,
         height: i64,
         delta: f64,
+        maybe: Option<i64>,
     }
 
     #[derive(Eq, Hash, PartialEq, Ord, PartialOrd)]
@@ -237,6 +238,7 @@ mod tests {
         WorkerHealth,
         ServiceHeight,
         ServiceDelta,
+        Maybe,
     }
 
     impl ToMetricDef for ServiceMetric {
@@ -251,6 +253,9 @@ mod tests {
                 ServiceMetric::ServiceDelta => {
                     MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
                 }
+                ServiceMetric::Maybe => {
+                    MetricDef::new("service_maybe", "service maybe", MetricType::Gauge).unwrap()
+                }
             }
         }
     }
@@ -264,6 +269,7 @@ mod tests {
                 health: true,
                 height: 100,
                 delta: 1.0,
+                maybe: Some(100),
             },
             State {
                 name: "b".into(),
@@ -271,6 +277,7 @@ mod tests {
                 health: true,
                 height: 200,
                 delta: 2.2,
+                maybe: Some(100),
             },
             State {
                 name: "c".into(),
@@ -278,6 +285,7 @@ mod tests {
                 health: true,
                 height: 300,
                 delta: 3.0,
+                maybe: Some(100),
             },
             State {
                 name: "d".into(),
@@ -285,6 +293,7 @@ mod tests {
                 health: false,
                 height: 0,
                 delta: 291283791287391287391.123,
+                maybe: None,
             },
         ];
 
@@ -295,7 +304,7 @@ mod tests {
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let mut common = BTreeMap::new();
+            let mut common = Labels::new();
             common.insert("name".to_string(), s.name);
 
             store.add_sample(
@@ -303,11 +312,14 @@ mod tests {
                 Sample::new(&common, if s.health { 1 } else { 0 }),
             );
 
-            let mut lbs = BTreeMap::new();
+            let mut lbs = Labels::new();
             lbs.insert("client".to_string(), s.client.clone());
             lbs.extend(common.clone());
 
             store.add_value(ServiceMetric::ServiceHeight, &lbs, s.height);
+            if let Some(maybe) = s.maybe {
+                store.add_value(ServiceMetric::Maybe, &lbs, maybe);
+            }
 
             let mut lbs_p = lbs.clone();
             lbs_p.insert("type".into(), "pos".into());
@@ -346,6 +358,12 @@ service_delta{client="meh",name="c",process="simple-metrics",type="pos"} 3
 service_delta{client="meh",name="c",process="simple-metrics",type="neg"} -3
 service_delta{client="meh",name="d",process="simple-metrics",type="pos"} 291283791287391300000
 service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283791287391300000
+
+# HELP service_maybe service maybe
+# TYPE service_maybe gauge
+service_maybe{client="woot",name="a",process="simple-metrics"} 100
+service_maybe{client="woot",name="b",process="simple-metrics"} 100
+service_maybe{client="meh",name="c",process="simple-metrics"} 100
 "#;
         assert_eq!(actual, expected);
     }
