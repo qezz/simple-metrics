@@ -13,7 +13,7 @@ pub trait RenderIntoMetrics {
 }
 
 /// Internal representation of sample labels
-type Labels = BTreeMap<String, String>;
+pub type Labels = BTreeMap<String, String>;
 
 impl RenderIntoMetrics for Labels {
     fn render_into_metrics(&self) -> String {
