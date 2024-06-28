@@ -45,6 +45,12 @@ impl RenderableValue for i64 {
     }
 }
 
+impl RenderableValue for u64 {
+    fn render(&self) -> String {
+        self.to_string()
+    }
+}
+
 impl RenderableValue for f64 {
     fn render(&self) -> String {
         format!("{}", self)
