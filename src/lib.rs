@@ -1,10 +1,12 @@
-use std::collections::HashMap;
 use regex::Regex;
+use std::{collections::BTreeMap, hash::Hash};
 
 lazy_static::lazy_static! {
     static ref METRIC_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$").unwrap();
     static ref LABEL_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
 }
+
+type Labels = BTreeMap<String, String>;
 
 /// A trait for rendering a Prometheus metric value into a string.
 pub trait RenderableValue {
@@ -25,12 +27,12 @@ impl RenderableValue for f64 {
 
 /// Sample holds a single measurement of metrics
 pub struct Sample {
-    labels: HashMap<String, String>,
+    labels: Labels,
     value: Box<dyn RenderableValue>,
 }
 
 impl Sample {
-    pub fn new<T: RenderableValue + 'static>(labels: &HashMap<String, String>, value: T) -> Self {
+    pub fn new<T: RenderableValue + 'static>(labels: &Labels, value: T) -> Self {
         Self {
             labels: labels.clone(),
             value: Box::new(value),
@@ -38,21 +40,12 @@ impl Sample {
     }
 }
 
-impl std::fmt::Display for Sample {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut labels = self
-            .labels
-            .iter()
+impl RenderIntoMetrics for Labels {
+    fn render_into_metrics(&self) -> String {
+        self.iter()
             .map(|(k, v)| format!(r#"{}="{}""#, k, v))
-            .collect::<Vec<String>>();
-
-        // NOTE: Sorting labels may be expensive, but it provides
-        // consistency.
-        labels.sort();
-
-        let labels = labels.join(",");
-
-        write!(f, "{{{}}} {}", labels, self.value.render())
+            .collect::<Vec<String>>()
+            .join(",")
     }
 }
 
@@ -79,15 +72,18 @@ pub trait RenderIntoMetrics {
     fn render_into_metrics(&self) -> String;
 }
 
+
+/// Metric type
+///
+/// This library doesn't distinguish between a counter, gauge and
+/// histogram metric types. It's your responsibility to ensure that
+/// the counter only increases and histogram provides consistent data.
 #[derive(Clone, Debug)]
 pub enum MetricType {
     /// A counter is a cumulative metric that represents a single
     /// monotonically increasing counter whose value can only increase
     /// or be reset to zero on restart.
-    ///
-    /// This library doesn't distinguish between a counter and other
-    /// metric types. It's your responsibility to ensure that the
-    /// counter only increases.
+    // TODO: Make counter work only with Option<u64>?
     Counter,
 
     /// A gauge is a metric that represents a single numerical value
@@ -140,22 +136,75 @@ pub trait ToMetricDef {
     fn to_metric_def(&self) -> MetricDef;
 }
 
-impl<K: ToMetricDef> RenderIntoMetrics for HashMap<K, Vec<Sample>> {
-    fn render_into_metrics(&self) -> String {
-        let mut all_metrics: Vec<String> = Vec::with_capacity(self.keys().len());
+pub struct MetricStore<K: ToMetricDef> {
+    static_labels: Labels,
+    samples: BTreeMap<K, Vec<Sample>>,
+}
 
-        for (m, samples) in self {
+impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
+    pub fn new() -> Self {
+        Self {
+            static_labels: Labels::new(),
+            samples: BTreeMap::new(),
+        }
+    }
+
+    pub fn with_static_labels(self, labels: Labels) -> Self {
+        Self {
+            static_labels: labels,
+            ..self
+        }
+    }
+
+    pub fn add_sample(&mut self, to_metric: K, sample: Sample) {
+        let v = self.samples.entry(to_metric).or_default();
+        v.push(sample);
+    }
+
+    pub fn add_value<V: RenderableValue + 'static>(
+        &mut self,
+        to_metric: K,
+        labels: &Labels,
+        value: V,
+    ) {
+        let sample = Sample::new(labels, value);
+
+        self.add_sample(to_metric, sample);
+    }
+}
+
+impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
+    fn render_into_metrics(&self) -> String {
+        let mut all_metrics: Vec<String> = Vec::with_capacity(self.samples.keys().len());
+
+        for (m, samples) in &self.samples {
             let metric_def = m.to_metric_def();
 
             let mut metrics = vec![];
 
             for s in samples {
-                metrics.push(format!("{}{}", metric_def.name, s))
+                let mut labels: Labels = s.labels.clone();
+                labels.extend(self.static_labels.clone());
+
+                let r = format!(
+                    "{}{{{}}} {}",
+                    metric_def.name,
+                    labels.render_into_metrics(),
+                    s.value.render()
+                );
+
+                metrics.push(r)
             }
 
             // TODO make sure no same labels exist?
-            // TODO: match labels with the regexp
-            // TODO: make sure there are no control characters in the labels values
+            // TODO match labels with the regexp
+            // TODO make sure there are no control characters in the labels values
 
             let rendered = format!(
                 "# HELP {} {}\n# TYPE {} {}\n{}\n",
@@ -185,37 +234,47 @@ mod tests {
         delta: f64,
     }
 
-    #[derive(Eq, Hash, PartialEq)]
-    pub enum CosmosMetric {
+    #[derive(Eq, Hash, PartialEq, Ord, PartialOrd)]
+    pub enum ServiceMetric {
         WorkerHealth,
         ChainHeight,
         SomeDeltaShit,
     }
 
-    impl ToMetricDef for CosmosMetric {
+    impl ToMetricDef for ServiceMetric {
         fn to_metric_def(&self) -> MetricDef {
             match self {
-                CosmosMetric::WorkerHealth => MetricDef::new(
-                    "worker_health",
-                    "worker health",
-                    MetricType::Gauge,
-                ).unwrap(),
-                CosmosMetric::ChainHeight => MetricDef::new(
-                    "cosmos_height",
-                    "cosmos height",
-                    MetricType::Gauge,
-                ).unwrap(),
-                CosmosMetric::SomeDeltaShit => MetricDef::new(
-                    "cosmos_delta",
-                    "cosmos delta",
-                    MetricType::Gauge,
-                ).unwrap(),
+                ServiceMetric::WorkerHealth => {
+                    MetricDef::new("worker_health", "worker health", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::ChainHeight => {
+                    MetricDef::new("service_height", "service height", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::SomeDeltaShit => {
+                    MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
+                }
+            }
+        }
+    }
+
+    impl From<ServiceMetric> for MetricDef {
+        fn from(value: ServiceMetric) -> Self {
+            match value {
+                ServiceMetric::WorkerHealth => {
+                    MetricDef::new("worker_health", "worker health", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::ChainHeight => {
+                    MetricDef::new("service_height", "service height", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::SomeDeltaShit => {
+                    MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
+                }
             }
         }
     }
 
     #[test]
-    fn simple() {
+    fn simple2() {
         let states = vec![
             State {
                 name: "a".into(),
@@ -247,38 +306,37 @@ mod tests {
             },
         ];
 
-        let mut samples: HashMap<CosmosMetric, Vec<Sample>> = HashMap::new();
-        samples.insert(CosmosMetric::ChainHeight, vec![]);
-        samples.insert(CosmosMetric::WorkerHealth, vec![]);
-        samples.insert(CosmosMetric::SomeDeltaShit, vec![]);
+        let mut static_labels = BTreeMap::new();
+        static_labels.insert("process".into(), "simple-metrics".into());
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let mut common = HashMap::new();
+            let mut common = BTreeMap::new();
             common.insert("name".to_string(), s.name);
 
-            if let Some(v) = samples.get_mut(&CosmosMetric::WorkerHealth) {
-                v.push(Sample::new(&common, if s.health { 1 } else { 0 }))
-            }
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&common, if s.health { 1 } else { 0 }),
+            );
 
-            if let Some(v) = samples.get_mut(&CosmosMetric::ChainHeight) {
-                let mut lbs = HashMap::new();
-                lbs.insert("client".to_string(), s.client.clone());
-                lbs.extend(common.clone());
+            let mut lbs = BTreeMap::new();
+            lbs.insert("client".to_string(), s.client.clone());
+            lbs.extend(common.clone());
 
-                v.push(Sample::new(&lbs, s.height))
-            }
+            store.add_value(ServiceMetric::ChainHeight, &lbs, s.height);
 
-            if let Some(v) = samples.get_mut(&CosmosMetric::SomeDeltaShit) {
-                let mut lbs = HashMap::new();
-                lbs.insert("client".to_string(), s.client);
-                lbs.extend(common);
+            let mut lbs_s = lbs.clone();
+            lbs_s.insert("type".into(), "pos".into());
+            store.add_value(ServiceMetric::SomeDeltaShit, &lbs_s, s.delta);
 
-                v.push(Sample::new(&lbs, s.delta));
-                v.push(Sample::new(&lbs, 1.0 - s.delta));
-            }
+            let mut lbs_s = lbs.clone();
+            lbs_s.insert("type".into(), "neg".into());
+            store.add_value(ServiceMetric::SomeDeltaShit, &lbs_s, -s.delta);
         }
 
-        let actual = samples.render_into_metrics();
+        let actual = store.render_into_metrics();
 
         println!("{}", actual);
 
