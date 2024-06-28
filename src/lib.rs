@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn simple() {
+    fn complex() {
         let states = vec![
             State {
                 name: "a".into(),
@@ -402,6 +402,63 @@ service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283
 service_maybe{client="woot",name="a",process="simple-metrics"} 100
 service_maybe{client="woot",name="b",process="simple-metrics"} 100
 service_maybe{client="meh",name="c",process="simple-metrics"} 100
+"#;
+        assert_eq!(actual, expected);
+    }
+
+    pub struct SimpleState {
+        name: String,
+        health: bool,
+        height: i64,
+    }
+
+    #[test]
+    fn simple() {
+        let states = vec![
+            SimpleState {
+                name: "a".into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: "b".into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let mut static_labels = BTreeMap::new();
+        static_labels.insert("process".into(), "simple-metrics".into());
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        for s in states {
+            let mut common = Labels::new();
+            common.insert("name".to_string(), s.name);
+
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&common, s.health).unwrap(),
+            );
+
+            store
+                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
+                .expect("valid");
+        }
+
+        let actual = store.render_into_metrics();
+        println!("{}", actual);
+
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+worker_health{name="a",process="simple-metrics"} 1
+worker_health{name="b",process="simple-metrics"} 0
+
+# HELP service_height service height
+# TYPE service_height gauge
+service_height{name="a",process="simple-metrics"} 100
+service_height{name="b",process="simple-metrics"} 200
 "#;
         assert_eq!(actual, expected);
     }
