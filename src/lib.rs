@@ -12,6 +12,7 @@ pub trait RenderIntoMetrics {
     fn render_into_metrics(&self) -> String;
 }
 
+/// Internal representation of sample labels
 type Labels = BTreeMap<String, String>;
 
 impl RenderIntoMetrics for Labels {
@@ -117,6 +118,7 @@ pub struct MetricDef {
     metric_type: MetricType,
 }
 
+/// Metric definition, including its name, help string, and metric type
 impl MetricDef {
     pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
         if !METRIC_NAME_RE.is_match(name) {
@@ -131,7 +133,7 @@ impl MetricDef {
     }
 }
 
-// TODO: Replace with From<X> for MetricDef
+// TODO: Replace with From<X> for MetricDef?
 pub trait ToMetricDef {
     fn to_metric_def(&self) -> MetricDef;
 }
@@ -155,6 +157,9 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         }
     }
 
+    /// Add static labels to MetricStore
+    ///
+    /// These labels will be added to every sample.
     pub fn with_static_labels(self, labels: Labels) -> Self {
         Self {
             static_labels: labels,
@@ -162,11 +167,13 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         }
     }
 
+    /// Add Sample to metric
     pub fn add_sample(&mut self, to_metric: K, sample: Sample) {
         let v = self.samples.entry(to_metric).or_default();
         v.push(sample);
     }
 
+    /// Add value to metric
     pub fn add_value<V: RenderableValue + 'static>(
         &mut self,
         to_metric: K,
