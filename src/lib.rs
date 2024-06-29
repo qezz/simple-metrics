@@ -34,53 +34,67 @@ pub fn check_labels(labels: &Labels) -> Result<(), Error> {
     Ok(())
 }
 
-/// A trait for rendering a Prometheus metric value into a string.
-pub trait RenderableValue {
-    fn render(&self) -> String;
+pub enum MetricValue {
+    I64(i64),
+    U64(u64),
+    F64(f64),
+    Bool(bool),
 }
 
-impl RenderableValue for i64 {
-    fn render(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl RenderableValue for u64 {
-    fn render(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl RenderableValue for f64 {
-    fn render(&self) -> String {
-        format!("{}", self)
-    }
-}
-
-// Booleans are rendered as 1 or 0.
-impl RenderableValue for bool {
-    fn render(&self) -> String {
-        if *self {
-            1_i64.render()
-        } else {
-            0_i64.render()
+impl MetricValue {
+    pub fn render(&self) -> String {
+        match self {
+            MetricValue::I64(v) => v.to_string(),
+            MetricValue::U64(v) => v.to_string(),
+            MetricValue::F64(v) => format!("{}", v),
+            MetricValue::Bool(v) => {
+                if *v {
+                    1_i64.to_string()
+                } else {
+                    0_i64.to_string()
+                }
+            }
         }
+    }
+}
+
+impl From<i64> for MetricValue {
+    fn from(v: i64) -> Self {
+        MetricValue::I64(v)
+    }
+}
+
+impl From<u64> for MetricValue {
+    fn from(v: u64) -> Self {
+        MetricValue::U64(v)
+    }
+}
+
+impl From<f64> for MetricValue {
+    fn from(v: f64) -> Self {
+        MetricValue::F64(v)
+    }
+}
+
+impl From<bool> for MetricValue {
+    fn from(v: bool) -> Self {
+        MetricValue::Bool(v)
     }
 }
 
 /// Sample holds a single measurement of metrics
 pub struct Sample {
     labels: Labels,
-    value: Box<dyn RenderableValue>,
+    value: MetricValue,
 }
 
 impl Sample {
-    pub fn new<T: RenderableValue + 'static>(labels: &Labels, value: T) -> Result<Self, Error> {
+    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
         check_labels(labels)?;
 
         Ok(Self {
             labels: labels.clone(),
-            value: Box::new(value),
+            value: value.into(),
         })
     }
 }
@@ -203,7 +217,7 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
     }
 
     /// Add value to metric
-    pub fn add_value<V: RenderableValue + 'static>(
+    pub fn add_value<V: Into<MetricValue>>(
         &mut self,
         to_metric: K,
         labels: &Labels,
