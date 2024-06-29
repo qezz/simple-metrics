@@ -34,6 +34,7 @@ pub fn check_labels(labels: &Labels) -> Result<(), Error> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
 pub enum MetricValue {
     I64(i64),
     U64(u64),
@@ -83,6 +84,7 @@ impl From<bool> for MetricValue {
 }
 
 /// Sample holds a single measurement of metrics
+#[derive(Debug, Clone)]
 pub struct Sample {
     labels: Labels,
     value: MetricValue,
@@ -177,10 +179,11 @@ impl MetricDef {
 }
 
 // TODO: Replace with From<X> for MetricDef?
-pub trait ToMetricDef {
+pub trait ToMetricDef: Clone {
     fn to_metric_def(&self) -> MetricDef;
 }
 
+#[derive(Clone, Debug)]
 pub struct MetricStore<K: ToMetricDef> {
     static_labels: Labels,
     samples: BTreeMap<K, Vec<Sample>>,
@@ -283,7 +286,7 @@ mod tests {
         maybe: Option<i64>,
     }
 
-    #[derive(Eq, Hash, PartialEq, Ord, PartialOrd)]
+    #[derive(Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
     pub enum ServiceMetric {
         WorkerHealth,
         ServiceHeight,
@@ -466,6 +469,8 @@ service_maybe{client="meh",name="c",process="simple-metrics"} 100
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
                 .expect("valid");
         }
+
+        let _cloned_store = store.clone();
 
         let actual = store.render_into_metrics();
         println!("{}", actual);
