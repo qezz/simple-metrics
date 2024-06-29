@@ -231,6 +231,33 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
 
         Ok(())
     }
+
+    /// Include static labels to all samples, and return the inner
+    /// representation.
+    ///
+    /// Useful if you need to merge multiple MetricStore instances
+    /// together.
+    pub fn to_rich_samples(self) -> BTreeMap<K, Vec<Sample>> {
+        let mut rich_data = BTreeMap::new();
+
+        for (k, samples) in self.samples {
+            let mut new_samples = vec![];
+
+            for s in samples {
+                let mut labels = s.labels.clone();
+                labels.extend(self.static_labels.clone());
+
+                new_samples.push(Sample {
+                    labels,
+                    value: s.value,
+                });
+            }
+
+            rich_data.insert(k, new_samples);
+        }
+
+        rich_data
+    }
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
