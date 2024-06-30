@@ -300,6 +300,44 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
     }
 }
 
+impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
+    fn render_into_metrics(&self) -> String {
+        let len = self.values().map(|vec| vec.len()).sum();
+        let mut all_metrics: Vec<String> = Vec::with_capacity(len);
+
+        for (m, samples) in self {
+            let metric_def = m.to_metric_def();
+
+            let mut metrics = vec![];
+
+            for s in samples {
+                metrics.push(format!(
+                    "{}{{{}}} {}",
+                    metric_def.name,
+                    s.labels.render_into_metrics(),
+                    s.value.render()
+                ))
+            }
+
+            // TODO make sure no same labels exist?
+            // TODO make sure there are no control characters in the labels values
+
+            let rendered = format!(
+                "# HELP {} {}\n# TYPE {} {}\n{}\n",
+                metric_def.name,
+                metric_def.help,
+                metric_def.name,
+                metric_def.metric_type,
+                metrics.join("\n")
+            );
+
+            all_metrics.push(rendered);
+        }
+
+        all_metrics.join("\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
