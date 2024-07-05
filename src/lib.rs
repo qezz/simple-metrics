@@ -28,12 +28,20 @@ impl Labels {
         }
     }
 
-    pub fn with(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+    pub fn with<K, V>(mut self, key: K, value: V) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
         self.insert(key, value);
         self
     }
 
-    pub fn insert(&mut self, key: impl AsRef<str>, value: impl AsRef<str>) {
+    pub fn insert<K, V>(&mut self, key: K, value: V)
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
         self.inner
             .insert(key.as_ref().to_string(), value.as_ref().to_string());
     }
