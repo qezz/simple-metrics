@@ -45,10 +45,6 @@ impl Labels {
         self.inner.insert(key.into(), value.into());
     }
 
-    pub fn extend(&mut self, other: Labels) {
-        self.inner.extend(other.inner);
-    }
-
     pub fn iter(&self) -> btree_map::Iter<String, String> {
         self.inner.iter()
     }
@@ -69,6 +65,21 @@ impl Labels {
 impl Default for Labels {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl IntoIterator for Labels {
+    type Item = (String, String);
+    type IntoIter = btree_map::IntoIter<String, String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl Extend<(String, String)> for Labels {
+    fn extend<T: IntoIterator<Item = (String, String)>>(&mut self, iter: T) {
+        self.inner.extend(iter)
     }
 }
 
