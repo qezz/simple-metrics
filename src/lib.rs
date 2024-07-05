@@ -309,6 +309,21 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         Ok(())
     }
 
+    /// Add value to metric if it's `Some(..)`, skip if it's `None`
+    pub fn maybe_add_value<V: Into<MetricValue>>(
+        &mut self,
+        to_metric: K,
+        labels: &Labels,
+        maybe_value: Option<V>,
+    ) -> Result<(), Error> {
+        if let Some(value) = maybe_value {
+            let sample = Sample::new(labels, value)?;
+            self.add_sample(to_metric, sample);
+        }
+
+        Ok(())
+    }
+
     /// Include static labels to all samples, and return the inner
     /// representation.
     ///
