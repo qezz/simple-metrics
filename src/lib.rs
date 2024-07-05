@@ -30,8 +30,8 @@ impl Labels {
 
     pub fn with<K, V>(mut self, key: K, value: V) -> Self
     where
-        K: AsRef<str>,
-        V: AsRef<str>,
+        K: Into<String>,
+        V: Into<String>,
     {
         self.insert(key, value);
         self
@@ -39,11 +39,10 @@ impl Labels {
 
     pub fn insert<K, V>(&mut self, key: K, value: V)
     where
-        K: AsRef<str>,
-        V: AsRef<str>,
+        K: Into<String>,
+        V: Into<String>,
     {
-        self.inner
-            .insert(key.as_ref().to_string(), value.as_ref().to_string());
+        self.inner.insert(key.into(), value.into());
     }
 
     pub fn extend(&mut self, other: Labels) {
@@ -75,13 +74,13 @@ impl Default for Labels {
 
 impl<T, U> FromIterator<(T, U)> for Labels
 where
-    T: AsRef<str>,
-    U: AsRef<str>,
+    T: Into<String>,
+    U: Into<String>,
 {
     fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in iter {
-            map.insert(key.as_ref().to_string(), value.as_ref().to_string());
+            map.insert(key.into(), value.into());
         }
         Labels { inner: map }
     }
@@ -89,8 +88,8 @@ where
 
 impl<'a, T, U> From<&'a [(T, U)]> for Labels
 where
-    T: AsRef<str> + 'a,
-    U: AsRef<str> + 'a,
+    T: Into<String> + AsRef<str> + 'a,
+    U: Into<String> + AsRef<str> + 'a,
 {
     fn from(tuples: &'a [(T, U)]) -> Self {
         tuples
