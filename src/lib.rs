@@ -317,8 +317,7 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         maybe_value: Option<V>,
     ) -> Result<(), Error> {
         if let Some(value) = maybe_value {
-            let sample = Sample::new(labels, value)?;
-            self.add_sample(to_metric, sample);
+            self.add_value(to_metric, labels, value)?
         }
 
         Ok(())
