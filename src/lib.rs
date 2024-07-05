@@ -110,6 +110,12 @@ where
     }
 }
 
+impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]> for Labels {
+    fn from(value: [(K, V); N]) -> Self {
+        value.iter().cloned().collect()
+    }
+}
+
 impl RenderIntoMetrics for Labels {
     fn render_into_metrics(&self) -> String {
         self.iter()
@@ -524,13 +530,13 @@ mod tests {
             },
         ];
 
-        let static_labels = Labels::from(&[("process", "simple-metrics")][..]);
+        let static_labels = Labels::from([("process", "simple-metrics")]);
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from(&[("name", s.name)][..]);
+            let common = Labels::from([("name", s.name)]);
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
@@ -623,7 +629,7 @@ service_maybe{client="meh",name="c",process="simple-metrics"} 100
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from(&[("name", s.name)][..]);
+            let common = Labels::from([("name", s.name)]);
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
@@ -696,5 +702,9 @@ service_height{name="b",process="simple-metrics"} 200
 
         let labels_from_2 = Labels::from(&[("one", "1"), ("two", "2"), ("three", "3")][..]);
         assert_eq!(labels, labels_from_2);
+
+        let labels_from_3 = Labels::from([("one", "1"), ("two", "2"), ("three", "3")]);
+        assert_eq!(labels, labels_from_3);
+
     }
 }
