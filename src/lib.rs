@@ -1,5 +1,8 @@
 use regex::Regex;
-use std::{collections::BTreeMap, hash::Hash};
+use std::{
+    collections::{btree_map, BTreeMap},
+    hash::Hash,
+};
 
 lazy_static::lazy_static! {
     static ref METRIC_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$").unwrap();
@@ -13,7 +16,81 @@ pub trait RenderIntoMetrics {
 }
 
 /// Internal representation of sample labels
-pub type Labels = BTreeMap<String, String>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Labels {
+    inner: BTreeMap<String, String>,
+}
+
+impl Labels {
+    pub fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    pub fn with(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+        self.insert(key, value);
+        self
+    }
+
+    pub fn insert(&mut self, key: impl AsRef<str>, value: impl AsRef<str>) {
+        self.inner
+            .insert(key.as_ref().to_string(), value.as_ref().to_string());
+    }
+
+    pub fn extend(&mut self, other: Labels) {
+        self.inner.extend(other.inner);
+    }
+
+    pub fn iter(&self) -> btree_map::Iter<String, String> {
+        self.inner.iter()
+    }
+
+    pub fn keys(&self) -> btree_map::Keys<String, String> {
+        self.inner.keys()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl Default for Labels {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, U> FromIterator<(T, U)> for Labels
+where
+    T: AsRef<str>,
+    U: AsRef<str>,
+{
+    fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
+        let mut map = BTreeMap::new();
+        for (key, value) in iter {
+            map.insert(key.as_ref().to_string(), value.as_ref().to_string());
+        }
+        Labels { inner: map }
+    }
+}
+
+impl<'a, T, U> From<&'a [(T, U)]> for Labels
+where
+    T: AsRef<str> + 'a,
+    U: AsRef<str> + 'a,
+{
+    fn from(tuples: &'a [(T, U)]) -> Self {
+        tuples
+            .iter()
+            .map(|(k, v)| (k.as_ref(), v.as_ref()))
+            .collect()
+    }
+}
 
 impl RenderIntoMetrics for Labels {
     fn render_into_metrics(&self) -> String {
@@ -302,7 +379,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
 
 impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
     fn render_into_metrics(&self) -> String {
-        let len = self.values().map(|vec| vec.len()).sum();
+        let len = self.len();
         let mut all_metrics: Vec<String> = Vec::with_capacity(len);
 
         for (m, samples) in self {
@@ -415,24 +492,20 @@ mod tests {
             },
         ];
 
-        let mut static_labels = BTreeMap::new();
-        static_labels.insert("process".into(), "simple-metrics".into());
+        let static_labels = Labels::from(&[("process", "simple-metrics")][..]);
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let mut common = Labels::new();
-            common.insert("name".to_string(), s.name);
+            let common = Labels::from(&[("name", s.name)][..]);
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
                 Sample::new(&common, s.health).unwrap(),
             );
 
-            let mut lbs = Labels::new();
-            lbs.insert("client".to_string(), s.client.clone());
-            lbs.extend(common.clone());
+            let lbs = common.clone().with("client", s.client);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &lbs, s.height)
@@ -444,16 +517,12 @@ mod tests {
                     .expect("valid");
             }
 
-            let mut lbs_p = lbs.clone();
-            lbs_p.insert("type".into(), "pos".into());
-
+            let lbs_p = lbs.clone().with("type", "pos");
             store
                 .add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta)
                 .expect("valid");
 
-            let mut lbs_n = lbs.clone();
-            lbs_n.insert("type".into(), "neg".into());
-
+            let lbs_n = lbs.clone().with("type", "neg");
             store
                 .add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta)
                 .expect("valid");
@@ -515,15 +584,14 @@ service_maybe{client="meh",name="c",process="simple-metrics"} 100
             },
         ];
 
-        let mut static_labels = BTreeMap::new();
-        static_labels.insert("process".into(), "simple-metrics".into());
+        let mut static_labels = Labels::new();
+        static_labels.insert("process", "simple-metrics");
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let mut common = Labels::new();
-            common.insert("name".to_string(), s.name);
+            let common = Labels::from(&[("name", s.name)][..]);
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
@@ -551,5 +619,50 @@ service_height{name="a",process="simple-metrics"} 100
 service_height{name="b",process="simple-metrics"} 200
 "#;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn labels_new() {
+        let mut labels_insert = Labels::new();
+        labels_insert.insert("hello", "world");
+        labels_insert.insert("woot", "meh");
+        assert_eq!(2, labels_insert.len());
+
+        let labels_with = Labels::new().with("hello", "world").with("woot", "meh");
+        assert_eq!(2, labels_with.len());
+
+        assert_eq!(labels_insert, labels_with);
+
+        let labels_default = Labels::default();
+        assert_eq!(0, labels_default.len());
+    }
+
+    #[test]
+    fn labels_with() {
+        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
+        let labels: Labels = tuples.into_iter().collect();
+        assert_eq!(3, labels.len());
+
+        let new_labels = labels.clone().with("four", "4");
+
+        let tuples2 = [("one", "1"), ("two", "2"), ("three", "3"), ("four", "4")];
+        let labels2: Labels = tuples2.into_iter().collect();
+
+        assert_eq!(new_labels, labels2);
+    }
+
+    #[test]
+    fn labels_from_tuple_list() {
+        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
+        let labels: Labels = tuples.into_iter().collect();
+        assert_eq!(3, labels.len());
+
+        let labels_from = Labels::from(&tuples[..]);
+        assert_eq!(3, labels_from.len());
+
+        assert_eq!(labels, labels_from);
+
+        let labels_from_2 = Labels::from(&[("one", "1"), ("two", "2"), ("three", "3")][..]);
+        assert_eq!(labels, labels_from_2);
     }
 }
