@@ -137,8 +137,12 @@ pub fn check_labels(labels: &Labels) -> Result<(), Error> {
 
 #[derive(Debug, Clone)]
 pub enum MetricValue {
+    I32(i32),
     I64(i64),
+    I128(i128),
+    U32(u32),
     U64(u64),
+    U128(u128),
     F64(f64),
     Bool(bool),
 }
@@ -146,8 +150,12 @@ pub enum MetricValue {
 impl MetricValue {
     pub fn render(&self) -> String {
         match self {
+            MetricValue::I32(v) => v.to_string(),
             MetricValue::I64(v) => v.to_string(),
+            MetricValue::I128(v) => v.to_string(),
+            MetricValue::U32(v) => v.to_string(),
             MetricValue::U64(v) => v.to_string(),
+            MetricValue::U128(v) => v.to_string(),
             MetricValue::F64(v) => format!("{}", v),
             MetricValue::Bool(v) => {
                 if *v {
@@ -160,15 +168,39 @@ impl MetricValue {
     }
 }
 
+impl From<i32> for MetricValue {
+    fn from(v: i32) -> Self {
+        MetricValue::I32(v)
+    }
+}
+
 impl From<i64> for MetricValue {
     fn from(v: i64) -> Self {
         MetricValue::I64(v)
     }
 }
 
+impl From<i128> for MetricValue {
+    fn from(v: i128) -> Self {
+        MetricValue::I128(v)
+    }
+}
+
+impl From<u32> for MetricValue {
+    fn from(v: u32) -> Self {
+        MetricValue::U32(v)
+    }
+}
+
 impl From<u64> for MetricValue {
     fn from(v: u64) -> Self {
         MetricValue::U64(v)
+    }
+}
+
+impl From<u128> for MetricValue {
+    fn from(v: u128) -> Self {
+        MetricValue::U128(v)
     }
 }
 
