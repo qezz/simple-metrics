@@ -110,7 +110,9 @@ where
     }
 }
 
-impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]> for Labels {
+impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]>
+    for Labels
+{
     fn from(value: [(K, V); N]) -> Self {
         value.iter().cloned().collect()
     }
@@ -737,6 +739,5 @@ service_height{name="b",process="simple-metrics"} 200
 
         let labels_from_3 = Labels::from([("one", "1"), ("two", "2"), ("three", "3")]);
         assert_eq!(labels, labels_from_3);
-
     }
 }
