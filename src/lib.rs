@@ -506,6 +506,7 @@ mod tests {
         ServiceHeight,
         ServiceDelta,
         Maybe,
+        Maybe2,
     }
 
     impl ToMetricDef for ServiceMetric {
@@ -522,6 +523,9 @@ mod tests {
                 }
                 ServiceMetric::Maybe => {
                     MetricDef::new("service_maybe", "service maybe", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::Maybe2 => {
+                    MetricDef::new("service_maybe2", "service maybe2", MetricType::Gauge).unwrap()
                 }
             }
         }
@@ -589,6 +593,10 @@ mod tests {
                     .expect("valid");
             }
 
+            store
+                .maybe_add_value(ServiceMetric::Maybe2, &lbs, s.maybe)
+                .expect("valid");
+
             let lbs_p = lbs.clone().with("type", "pos");
             store
                 .add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta)
@@ -631,6 +639,12 @@ service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283
 service_maybe{client="woot",name="a",process="simple-metrics"} 100
 service_maybe{client="woot",name="b",process="simple-metrics"} 100
 service_maybe{client="meh",name="c",process="simple-metrics"} 100
+
+# HELP service_maybe2 service maybe2
+# TYPE service_maybe2 gauge
+service_maybe2{client="woot",name="a",process="simple-metrics"} 100
+service_maybe2{client="woot",name="b",process="simple-metrics"} 100
+service_maybe2{client="meh",name="c",process="simple-metrics"} 100
 "#;
         assert_eq!(actual, expected);
     }
