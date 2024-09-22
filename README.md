@@ -10,13 +10,20 @@ should be or can be done. It comes from author's experience with
 Prometheus client libraries and various exporters.
 
 Goals:
-- provide a modular way to render and compose metrics
-- provide a functional (a.k.a pure) approach to metrics
+- **provide a modular way to render and compose metrics**: You can
+  have multiple workers, each of them should be able to produce
+  independent set of metrics.
+- **provide data-driven approach to metrics**: The metrics can be
+  constructed and rendered based on exporter's internal state. There's
+  no stateful metrics registry, and it's your responsibility to update
+  state when needed.
 
 Non goals:
 - re-implement Prometheus metrics (Counter, Gauge, Histogram) and
   their behavior. It's your responsibility to keep the internal state
   consistent, and correctly derive metrics from it.
+   - Side note: I'm currently thinking on having those types here, but
+     it will take some time to implement them properly.
 - have stateful metrics registry.
 - manage global state for metrics.
 
@@ -24,6 +31,10 @@ You might find this library useful if you run multiple independent
 workers that should serve different sets of metrics. The workers in
 this case can have domain specific metrics, and are not limited to a
 single format.
+
+Because there's no global registry, and because the metrics are
+data-driven, it becomes relatively easy to test your application. See
+unit tests in the code, or a simple example below.
 
 ## Usage
 
