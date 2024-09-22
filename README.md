@@ -97,18 +97,18 @@ for s in states {
         .expect("valid");
 }
 
-let actual = store.render_into_metrics();
+let actual = store.render_into_metrics(Some("namespace"));
 println!("{}", actual);
 
 let expected = r#"# HELP worker_health worker health
 # TYPE worker_health gauge
-worker_health{name="a",process="simple-metrics"} 1
-worker_health{name="b",process="simple-metrics"} 0
+namespace_worker_health{name="a",process="simple-metrics"} 1
+namespace_worker_health{name="b",process="simple-metrics"} 0
 
 # HELP service_height service height
 # TYPE service_height gauge
-service_height{name="a",process="simple-metrics"} 100
-service_height{name="b",process="simple-metrics"} 200
+namespace_service_height{name="a",process="simple-metrics"} 100
+namespace_service_height{name="b",process="simple-metrics"} 200
 "#;
 
 assert_eq!(actual, expected);
