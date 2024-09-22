@@ -422,6 +422,10 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
 
         self.static_labels = Labels::new();
     }
+
+    pub fn extend_samples(&mut self, other: &MetricStore<K>) {
+        self.samples.extend(other.clone().samples)
+    }
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
