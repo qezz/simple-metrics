@@ -758,6 +758,58 @@ service_height{name="b",process="simple-metrics"} 200
     }
 
     #[test]
+    fn simple_with_namespace() {
+        let states = vec![
+            SimpleState {
+                name: "a".into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: "b".into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let mut static_labels = Labels::new();
+        static_labels.insert("process", "simple-metrics");
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        for s in states {
+            let common = Labels::from([("name", s.name)]);
+
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&common, s.health).unwrap(),
+            );
+
+            store
+                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
+                .expect("valid");
+        }
+
+        let _cloned_store = store.clone();
+
+        let actual = store.render_into_metrics(Some("namespace"));
+        println!("{}", actual);
+
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+namespace_worker_health{name="a",process="simple-metrics"} 1
+namespace_worker_health{name="b",process="simple-metrics"} 0
+
+# HELP service_height service height
+# TYPE service_height gauge
+namespace_service_height{name="a",process="simple-metrics"} 100
+namespace_service_height{name="b",process="simple-metrics"} 200
+"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn labels_new() {
         let mut labels_insert = Labels::new();
         labels_insert.insert("hello", "world");
