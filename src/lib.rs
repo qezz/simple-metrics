@@ -405,6 +405,23 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
 
         rich_data
     }
+
+    /// Include static labels to all samples.
+    ///
+    /// It is a destructive operation, the static labels will be
+    /// emptied after this operation.
+    ///
+    /// Useful if you need to merge multiple MetricStore instances
+    /// together.
+    pub fn bake_static_labels(&mut self) {
+        for samples in self.samples.values_mut() {
+            for s in samples {
+                s.labels.extend(self.static_labels.clone());
+            }
+        }
+
+        self.static_labels = Labels::new();
+    }
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
@@ -751,5 +768,55 @@ service_height{name="b",process="simple-metrics"} 200
 
         let labels_from_3 = Labels::from([("one", "1"), ("two", "2"), ("three", "3")]);
         assert_eq!(labels, labels_from_3);
+    }
+
+    #[test]
+    fn bake_static_labels() {
+        let states = vec![
+            SimpleState {
+                name: "a".into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: "b".into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let mut static_labels = Labels::new();
+        static_labels.insert("process", "simple-metrics");
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        for s in states {
+            let common = Labels::from([("name", s.name)]);
+
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&common, s.health).unwrap(),
+            );
+
+            store
+                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
+                .expect("valid");
+        }
+
+        let expected = store.clone().render_into_metrics();
+
+        assert!(!store.static_labels.is_empty());
+        store.bake_static_labels();
+
+        let actual = store.render_into_metrics();
+
+        assert_eq!(actual, expected);
+        assert!(store.static_labels.is_empty());
+
+        // Calling `bake_static_labels()` again should not change the output.
+        store.bake_static_labels();
+        let actual = store.render_into_metrics();
+        assert_eq!(actual, expected);
     }
 }
