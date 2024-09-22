@@ -60,6 +60,13 @@ impl Labels {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
+
+    fn render(&self) -> String {
+        self.iter()
+            .map(|(k, v)| format!(r#"{}="{}""#, k, v))
+            .collect::<Vec<String>>()
+            .join(",")
+    }
 }
 
 impl Default for Labels {
@@ -115,15 +122,6 @@ impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> Fro
 {
     fn from(value: [(K, V); N]) -> Self {
         value.iter().cloned().collect()
-    }
-}
-
-impl RenderIntoMetrics for Labels {
-    fn render_into_metrics(&self) -> String {
-        self.iter()
-            .map(|(k, v)| format!(r#"{}="{}""#, k, v))
-            .collect::<Vec<String>>()
-            .join(",")
     }
 }
 
@@ -425,7 +423,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
                 metrics.push(format!(
                     "{}{{{}}} {}",
                     metric_def.name,
-                    labels.render_into_metrics(),
+                    labels.render(),
                     s.value.render()
                 ))
             }
@@ -463,7 +461,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
                 metrics.push(format!(
                     "{}{{{}}} {}",
                     metric_def.name,
-                    s.labels.render_into_metrics(),
+                    s.labels.render(),
                     s.value.render()
                 ))
             }
