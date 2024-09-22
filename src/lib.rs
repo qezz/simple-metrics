@@ -12,7 +12,7 @@ lazy_static::lazy_static! {
 /// Internal trait for rendering a collection of metrics into a
 /// string.
 pub trait RenderIntoMetrics {
-    fn render_into_metrics(&self) -> String;
+    fn render_into_metrics(&self, namespace: Option<&str>) -> String;
 }
 
 /// Internal representation of sample labels
@@ -429,7 +429,7 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
-    fn render_into_metrics(&self) -> String {
+    fn render_into_metrics(&self, namespace: Option<&str>) -> String {
         let mut all_metrics: Vec<String> = Vec::with_capacity(self.samples.keys().len());
 
         for (m, samples) in &self.samples {
@@ -441,12 +441,27 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
                 let mut labels: Labels = s.labels.clone();
                 labels.extend(self.static_labels.clone());
 
-                metrics.push(format!(
-                    "{}{{{}}} {}",
-                    metric_def.name,
-                    labels.render(),
-                    s.value.render()
-                ))
+                let rendered = match namespace {
+                    Some(ref ns) => {
+                        format!(
+                            "{}_{}{{{}}} {}",
+                            ns,
+                            metric_def.name,
+                            labels.render(),
+                            s.value.render()
+                        )
+                    }
+                    None => {
+                        format!(
+                            "{}{{{}}} {}",
+                            metric_def.name,
+                            labels.render(),
+                            s.value.render()
+                        )
+                    }
+                };
+
+                metrics.push(rendered);
             }
 
             // TODO make sure no same labels exist?
@@ -469,7 +484,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
-    fn render_into_metrics(&self) -> String {
+    fn render_into_metrics(&self, namespace: Option<&str>) -> String {
         let len = self.len();
         let mut all_metrics: Vec<String> = Vec::with_capacity(len);
 
@@ -479,12 +494,27 @@ impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
             let mut metrics = vec![];
 
             for s in samples {
-                metrics.push(format!(
-                    "{}{{{}}} {}",
-                    metric_def.name,
-                    s.labels.render(),
-                    s.value.render()
-                ))
+                let rendered = match namespace {
+                    Some(ref ns) => {
+                        format!(
+                            "{}_{}{{{}}} {}",
+                            ns,
+                            metric_def.name,
+                            s.labels.render(),
+                            s.value.render()
+                        )
+                    }
+                    None => {
+                        format!(
+                            "{}{{{}}} {}",
+                            metric_def.name,
+                            s.labels.render(),
+                            s.value.render()
+                        )
+                    }
+                };
+
+                metrics.push(rendered);
             }
 
             // TODO make sure no same labels exist?
@@ -589,6 +619,7 @@ mod tests {
 
         let static_labels = Labels::from([("process", "simple-metrics")]);
 
+        let namespace = String::from("test_exporter");
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
@@ -627,43 +658,43 @@ mod tests {
                 .expect("valid");
         }
 
-        let actual = store.render_into_metrics();
+        let actual = store.render_into_metrics(Some(&namespace));
         let expected = r#"# HELP worker_health worker health
 # TYPE worker_health gauge
-worker_health{name="a",process="simple-metrics"} 1
-worker_health{name="b",process="simple-metrics"} 1
-worker_health{name="c",process="simple-metrics"} 1
-worker_health{name="d",process="simple-metrics"} 0
+test_exporter_worker_health{name="a",process="simple-metrics"} 1
+test_exporter_worker_health{name="b",process="simple-metrics"} 1
+test_exporter_worker_health{name="c",process="simple-metrics"} 1
+test_exporter_worker_health{name="d",process="simple-metrics"} 0
 
 # HELP service_height service height
 # TYPE service_height gauge
-service_height{client="woot",name="a",process="simple-metrics"} 100
-service_height{client="woot",name="b",process="simple-metrics"} 200
-service_height{client="meh",name="c",process="simple-metrics"} 300
-service_height{client="meh",name="d",process="simple-metrics"} 0
+test_exporter_service_height{client="woot",name="a",process="simple-metrics"} 100
+test_exporter_service_height{client="woot",name="b",process="simple-metrics"} 200
+test_exporter_service_height{client="meh",name="c",process="simple-metrics"} 300
+test_exporter_service_height{client="meh",name="d",process="simple-metrics"} 0
 
 # HELP service_delta service delta
 # TYPE service_delta gauge
-service_delta{client="woot",name="a",process="simple-metrics",type="pos"} 1
-service_delta{client="woot",name="a",process="simple-metrics",type="neg"} -1
-service_delta{client="woot",name="b",process="simple-metrics",type="pos"} 2.2
-service_delta{client="woot",name="b",process="simple-metrics",type="neg"} -2.2
-service_delta{client="meh",name="c",process="simple-metrics",type="pos"} 3
-service_delta{client="meh",name="c",process="simple-metrics",type="neg"} -3
-service_delta{client="meh",name="d",process="simple-metrics",type="pos"} 291283791287391300000
-service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283791287391300000
+test_exporter_service_delta{client="woot",name="a",process="simple-metrics",type="pos"} 1
+test_exporter_service_delta{client="woot",name="a",process="simple-metrics",type="neg"} -1
+test_exporter_service_delta{client="woot",name="b",process="simple-metrics",type="pos"} 2.2
+test_exporter_service_delta{client="woot",name="b",process="simple-metrics",type="neg"} -2.2
+test_exporter_service_delta{client="meh",name="c",process="simple-metrics",type="pos"} 3
+test_exporter_service_delta{client="meh",name="c",process="simple-metrics",type="neg"} -3
+test_exporter_service_delta{client="meh",name="d",process="simple-metrics",type="pos"} 291283791287391300000
+test_exporter_service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283791287391300000
 
 # HELP service_maybe service maybe
 # TYPE service_maybe gauge
-service_maybe{client="woot",name="a",process="simple-metrics"} 100
-service_maybe{client="woot",name="b",process="simple-metrics"} 100
-service_maybe{client="meh",name="c",process="simple-metrics"} 100
+test_exporter_service_maybe{client="woot",name="a",process="simple-metrics"} 100
+test_exporter_service_maybe{client="woot",name="b",process="simple-metrics"} 100
+test_exporter_service_maybe{client="meh",name="c",process="simple-metrics"} 100
 
 # HELP service_maybe2 service maybe2
 # TYPE service_maybe2 gauge
-service_maybe2{client="woot",name="a",process="simple-metrics"} 100
-service_maybe2{client="woot",name="b",process="simple-metrics"} 100
-service_maybe2{client="meh",name="c",process="simple-metrics"} 100
+test_exporter_service_maybe2{client="woot",name="a",process="simple-metrics"} 100
+test_exporter_service_maybe2{client="woot",name="b",process="simple-metrics"} 100
+test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
 "#;
         assert_eq!(actual, expected);
     }
@@ -710,7 +741,7 @@ service_maybe2{client="meh",name="c",process="simple-metrics"} 100
 
         let _cloned_store = store.clone();
 
-        let actual = store.render_into_metrics();
+        let actual = store.render_into_metrics(None);
         println!("{}", actual);
 
         let expected = r#"# HELP worker_health worker health
@@ -808,19 +839,19 @@ service_height{name="b",process="simple-metrics"} 200
                 .expect("valid");
         }
 
-        let expected = store.clone().render_into_metrics();
+        let expected = store.clone().render_into_metrics(None);
 
         assert!(!store.static_labels.is_empty());
         store.bake_static_labels();
 
-        let actual = store.render_into_metrics();
+        let actual = store.render_into_metrics(None);
 
         assert_eq!(actual, expected);
         assert!(store.static_labels.is_empty());
 
         // Calling `bake_static_labels()` again should not change the output.
         store.bake_static_labels();
-        let actual = store.render_into_metrics();
+        let actual = store.render_into_metrics(None);
         assert_eq!(actual, expected);
     }
 }
