@@ -906,4 +906,47 @@ namespace_service_height{name="b",process="simple-metrics"} 200
         let actual = store.render_into_metrics(None);
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn simple_escape_label_values() {
+        let states = vec![
+            SimpleState {
+                name: r#""a""#.into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: r#""b""#.into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let mut static_labels = Labels::new();
+        static_labels.insert("process", "simple-metrics");
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        for s in states {
+            let common = Labels::from([("name", s.name)]);
+
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&common, s.health).unwrap(),
+            );
+        }
+
+        let _cloned_store = store.clone();
+
+        let actual = store.render_into_metrics(Some("namespace"));
+        println!("{}", actual);
+
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+namespace_worker_health{name="\"a\"",process="simple-metrics"} 1
+namespace_worker_health{name="\"b\"",process="simple-metrics"} 0
+"#;
+        assert_eq!(actual, expected);
+    }
 }
