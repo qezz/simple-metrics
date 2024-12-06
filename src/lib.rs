@@ -63,7 +63,7 @@ impl Labels {
 
     fn render(&self) -> String {
         self.iter()
-            .map(|(k, v)| format!(r#"{}="{}""#, k, v))
+            .map(|(k, v)| format!(r#"{}="{}""#, k, v.replace('"', r#"\""#)))
             .collect::<Vec<String>>()
             .join(",")
     }
