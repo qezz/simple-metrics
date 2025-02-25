@@ -1,8 +1,14 @@
-use std::collections::{btree_map, BTreeMap};
+use std::{
+    collections::{btree_map, BTreeMap},
+    marker::PhantomData,
+};
 
 use regex::Regex;
 
-use crate::Error;
+use crate::{
+    matchers::{LabelNameChecker, NaiveLabelNameChecker, RegexLabelNameChecker},
+    Error,
+};
 
 lazy_static::lazy_static! {
     static ref LABEL_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
@@ -10,14 +16,46 @@ lazy_static::lazy_static! {
 
 /// Internal representation of sample labels
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Labels {
+// pub struct Labels<C: LabelNameChecker = RegexLabelNameChecker> {
+//     inner: BTreeMap<String, String>,
+//     checker: PhantomData<C>,
+// }
+pub struct Labels<C: LabelNameChecker = RegexLabelNameChecker> {
     inner: BTreeMap<String, String>,
+    // checker: PhantomaData<C>,
+    checker: C,
 }
 
 impl Labels {
+    // pub fn new_with_checker() -> Self {
+    //     Self {
+    //         inner: BTreeMap::new(),
+    //         checker: PhantomData,
+    //     };
+    // }
+
     pub fn new() -> Self {
+        // Self::new_with_checker::<RegexLabelNameChecker>()
+        // Self::new_with_checker::<RegexLabelNameChecker>()
+        // Self::<RegexLabelNameChecker>::new_with_checker()
+        Self::new_with_checker()
+    }
+}
+
+impl<C: LabelNameChecker> Labels<C> {
+    pub fn new_with_checker() -> Self {
         Self {
             inner: BTreeMap::new(),
+            // checker: PhantomData,
+            checker: C::init(),
+        }
+    }
+
+    pub fn from_map_with_checker(m: BTreeMap<String, String>) -> Self {
+        Self {
+            inner: m,
+            // checker: PhantomData,
+            checker: C::init(),
         }
     }
 
@@ -60,6 +98,17 @@ impl Labels {
             .collect::<Vec<String>>()
             .join(",")
     }
+
+    pub fn check_labels(&self) -> Result<(), Error> {
+        for name in self.keys() {
+            // if !self.checker.is_valid(name) {
+            if !self.checker.is_valid(name) {
+                return Err(Error::InvalidLabelName(name.to_string()));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for Labels {
@@ -83,24 +132,31 @@ impl Extend<(String, String)> for Labels {
     }
 }
 
-impl<T, U> FromIterator<(T, U)> for Labels
+impl<T, U, C> FromIterator<(T, U)> for Labels<C>
 where
     T: Into<String>,
     U: Into<String>,
+    C: LabelNameChecker,
 {
     fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in iter {
             map.insert(key.into(), value.into());
         }
-        Labels { inner: map }
+        Labels {
+            inner: map,
+            // checker: PhantomData,
+            checker: C::init(),
+        }
+        // Labels::<NaiveLabelNameChecker>::from_map_with_checker(map)
     }
 }
 
-impl<'a, T, U> From<&'a [(T, U)]> for Labels
+impl<'a, T, U, C> From<&'a [(T, U)]> for Labels<C>
 where
     T: Into<String> + AsRef<str> + 'a,
     U: Into<String> + AsRef<str> + 'a,
+    C: LabelNameChecker,
 {
     fn from(tuples: &'a [(T, U)]) -> Self {
         tuples
@@ -118,19 +174,9 @@ impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> Fro
     }
 }
 
-pub fn check_labels(labels: &Labels) -> Result<(), Error> {
-    for name in labels.keys() {
-        if !LABEL_NAME_RE.is_match(name) {
-            return Err(Error::InvalidLabelName(name.to_string()));
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::Labels;
+    use crate::{matchers::{NaiveLabelNameChecker, RegexLabelNameChecker}, Labels};
 
     #[test]
     fn labels_new() {
@@ -178,5 +224,22 @@ mod tests {
 
         let labels_from_3 = Labels::from([("one", "1"), ("two", "2"), ("three", "3")]);
         assert_eq!(labels, labels_from_3);
+    }
+
+    #[test]
+    fn woot() {
+        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
+
+        let labels: Labels = tuples.into_iter().collect();
+        assert_eq!(3, labels.len());
+        assert!(labels.check_labels().is_ok());
+
+        let labels: Labels<RegexLabelNameChecker> = tuples.into_iter().collect();
+        assert_eq!(3, labels.len());
+        assert!(labels.check_labels().is_ok());
+
+        let labels: Labels<NaiveLabelNameChecker> = tuples.into_iter().collect();
+        assert_eq!(3, labels.len());
+        assert!(labels.check_labels().is_ok());
     }
 }

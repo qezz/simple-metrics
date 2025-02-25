@@ -2,6 +2,7 @@ use regex::Regex;
 
 pub mod labels;
 pub mod store;
+pub mod matchers;
 
 pub use labels::Labels;
 pub use store::MetricStore;
