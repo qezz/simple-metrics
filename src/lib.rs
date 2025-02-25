@@ -1,8 +1,11 @@
+use std::marker::PhantomData;
+
+use matchers::{MetricNameChecker, RegexMetricNameChecker};
 use regex::Regex;
 
 pub mod labels;
-pub mod store;
 pub mod matchers;
+pub mod store;
 
 pub use labels::Labels;
 pub use store::MetricStore;
@@ -107,7 +110,7 @@ pub struct Sample {
 
 impl Sample {
     pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
-        labels::check_labels(labels)?;
+        labels.check_names()?;
 
         Ok(Self {
             labels: labels.clone(),
@@ -180,8 +183,12 @@ pub struct MetricDef {
 
 /// Metric definition, including its name, help string, and metric type
 impl MetricDef {
-    pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
-        if !METRIC_NAME_RE.is_match(name) {
+    pub fn new_with_validator<C: MetricNameChecker>(
+        name: &str,
+        help: &str,
+        metric_type: MetricType,
+    ) -> Result<Self, Error> {
+        if !C::is_valid(name) {
             return Err(Error::InvalidMetricName(name.to_string()));
         }
 
@@ -190,6 +197,10 @@ impl MetricDef {
             help: help.to_string(),
             metric_type,
         })
+    }
+
+    pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
+        Self::new_with_validator::<RegexMetricNameChecker>(name, help, metric_type)
     }
 }
 

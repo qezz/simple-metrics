@@ -99,9 +99,8 @@ impl<C: LabelNameChecker> Labels<C> {
             .join(",")
     }
 
-    pub fn check_labels(&self) -> Result<(), Error> {
+    pub fn check_names(&self) -> Result<(), Error> {
         for name in self.keys() {
-            // if !self.checker.is_valid(name) {
             if !self.checker.is_valid(name) {
                 return Err(Error::InvalidLabelName(name.to_string()));
             }
@@ -176,7 +175,10 @@ impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> Fro
 
 #[cfg(test)]
 mod tests {
-    use crate::{matchers::{NaiveLabelNameChecker, RegexLabelNameChecker}, Labels};
+    use crate::{
+        matchers::{NaiveLabelNameChecker, RegexLabelNameChecker},
+        Labels,
+    };
 
     #[test]
     fn labels_new() {
@@ -232,14 +234,14 @@ mod tests {
 
         let labels: Labels = tuples.into_iter().collect();
         assert_eq!(3, labels.len());
-        assert!(labels.check_labels().is_ok());
+        assert!(labels.check_names().is_ok());
 
         let labels: Labels<RegexLabelNameChecker> = tuples.into_iter().collect();
         assert_eq!(3, labels.len());
-        assert!(labels.check_labels().is_ok());
+        assert!(labels.check_names().is_ok());
 
         let labels: Labels<NaiveLabelNameChecker> = tuples.into_iter().collect();
         assert_eq!(3, labels.len());
-        assert!(labels.check_labels().is_ok());
+        assert!(labels.check_names().is_ok());
     }
 }

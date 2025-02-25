@@ -74,7 +74,7 @@ pub struct RegexLabelNameChecker;
 
 impl LabelNameChecker for RegexLabelNameChecker {
     fn init() -> Self {
-        Self{}
+        Self {}
     }
 
     fn is_valid(&self, name: &str) -> bool {
@@ -86,7 +86,7 @@ pub struct NaiveLabelNameChecker;
 
 impl LabelNameChecker for NaiveLabelNameChecker {
     fn init() -> Self {
-        Self{}
+        Self {}
     }
 
     fn is_valid(&self, name: &str) -> bool {
