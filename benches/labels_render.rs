@@ -1,4 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{
+    black_box, criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion,
+    PlotConfiguration,
+};
 use std::collections::HashMap;
 
 fn labels_render_naive(map: &HashMap<String, String>) -> String {
@@ -36,10 +39,17 @@ fn labels_render_manual(map: &HashMap<String, String>) -> String {
     result
 }
 
+const SIZES: &[usize] = &[100, 1000, 10000];
+
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("render");
 
-    for size in [1000, 10000].iter() {
+    let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
+
+    // group.measurement_time(std::time::Duration::from_secs(15));
+    group.plot_config(plot_config);
+
+    for size in SIZES.iter() {
         let mut map = HashMap::new();
         for i in 0..*size {
             let key = format!("a_kinda_long_label_that_i_want_to_use_here{}", i);
@@ -65,7 +75,12 @@ fn criterion_benchmark(c: &mut Criterion) {
 fn criterion_benchmark_short(c: &mut Criterion) {
     let mut group = c.benchmark_group("render_short");
 
-    for size in [1000, 10000].iter() {
+    let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
+
+    // group.measurement_time(std::time::Duration::from_secs(10));
+    group.plot_config(plot_config);
+
+    for size in SIZES.iter() {
         let mut map = HashMap::new();
         for i in 0..*size {
             let key = format!("short_label{}", i);
