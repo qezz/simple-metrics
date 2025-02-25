@@ -10,7 +10,7 @@ fn gen_tuples(size: usize) -> Vec<(String, String)> {
     let mut tuples = Vec::with_capacity(size);
 
     for i in 0..size {
-        let label = format!("info_label_{}", i);
+        let label = format!("info_label{}", i);
         let value = format!("some_value{}", i);
 
         tuples.push((label, value));
@@ -20,7 +20,7 @@ fn gen_tuples(size: usize) -> Vec<(String, String)> {
 }
 
 fn bench_label_names(c: &mut Criterion) {
-    let mut group = c.benchmark_group("label_names");
+    let mut group = c.benchmark_group("label_names_comparison");
 
     for case in SIZES {
         let orig = gen_tuples(*case);
@@ -41,5 +41,22 @@ fn bench_label_names(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_label_names);
+fn regression_label_names(c: &mut Criterion) {
+    let mut group = c.benchmark_group("label_names_regression");
+
+    for case in SIZES {
+        let orig = gen_tuples(*case);
+        let tuples: Vec<(&str, &str)> = orig.iter().map(|x| (x.0.as_str(), x.1.as_str())).collect();
+
+        let labels: Labels = Labels::from(tuples.as_slice());
+
+        group.bench_with_input(BenchmarkId::new("labels_default", case), case, |b, _| {
+            b.iter(|| black_box(labels.check_names()))
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_label_names, regression_label_names);
 criterion_main!(benches);
