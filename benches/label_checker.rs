@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use simple_metrics::{
     matchers::{
         NaiveLabelNameChecker, NaiveLabelNameCheckerV2, NaiveLabelNameCheckerV3,
-        NaiveLabelNameCheckerV4, RegexLabelNameChecker,
+        RegexLabelNameChecker,
     },
     Labels,
 };
@@ -53,13 +53,6 @@ fn bench_label_names(c: &mut Criterion) {
         {
             let labels = Labels::<NaiveLabelNameCheckerV3>::from(tuples.as_slice());
             group.bench_with_input(BenchmarkId::new("naive_v3", case), case, |b, _| {
-                b.iter(|| black_box(labels.check_names()))
-            });
-        }
-
-        {
-            let labels = Labels::<NaiveLabelNameCheckerV4>::from(tuples.as_slice());
-            group.bench_with_input(BenchmarkId::new("naive_v4", case), case, |b, _| {
                 b.iter(|| black_box(labels.check_names()))
             });
         }

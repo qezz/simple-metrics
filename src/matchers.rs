@@ -168,30 +168,3 @@ impl LabelNameChecker for NaiveLabelNameCheckerV3 {
         }
     }
 }
-
-pub struct NaiveLabelNameCheckerV4;
-
-impl LabelNameChecker for NaiveLabelNameCheckerV4 {
-    fn init() -> Self {
-        Self {}
-    }
-
-    #[inline(always)]
-    fn is_valid(&self, s: &str) -> bool {
-        let bytes = s.as_bytes();
-        if bytes.is_empty() {
-            return false;
-        }
-
-        match bytes[0] {
-            b'A'..=b'Z' | b'a'..=b'z' | b'_' => {}
-            _ => return false,
-        }
-
-        bytes[1..].iter().all(|&b| {
-            matches!(b,
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_'
-            )
-        })
-    }
-}
