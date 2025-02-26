@@ -168,3 +168,34 @@ impl LabelNameChecker for NaiveLabelNameCheckerV3 {
         }
     }
 }
+
+pub struct NaiveLabelNameCheckerV4;
+
+impl LabelNameChecker for NaiveLabelNameCheckerV4 {
+    fn init() -> Self {
+        Self {}
+    }
+
+    #[inline(always)]
+    fn is_valid(&self, s: &str) -> bool {
+        let bytes = s.as_bytes();
+
+        if let Some(&first) = bytes.first() {
+            if !((b'A'..=b'Z').contains(&first)
+                || (b'a'..=b'z').contains(&first)
+                || first == b'_')
+            {
+                return false;
+            }
+
+            bytes.iter().skip(1).all(|&b| {
+                (b'A'..=b'Z').contains(&b)
+                    || (b'a'..=b'z').contains(&b)
+                    || (b'0'..=b'9').contains(&b)
+                    || b == b'_'
+            })
+        } else {
+            false
+        }
+    }
+}

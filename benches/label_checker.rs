@@ -1,8 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use simple_metrics::{
     matchers::{
-        NaiveLabelNameChecker, NaiveLabelNameCheckerV2, NaiveLabelNameCheckerV3,
-        RegexLabelNameChecker,
+        NaiveLabelNameChecker, NaiveLabelNameCheckerV2, NaiveLabelNameCheckerV3, NaiveLabelNameCheckerV4, RegexLabelNameChecker
     },
     Labels,
 };
@@ -13,7 +12,7 @@ fn gen_tuples(size: usize) -> Vec<(String, String)> {
     let mut tuples = Vec::with_capacity(size);
 
     for i in 0..size {
-        let label = format!("info_label{}", i);
+        let label = format!("info_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_labelinfo_label{}", i);
         let value = format!("some_value{}", i);
 
         tuples.push((label, value));
@@ -53,6 +52,13 @@ fn bench_label_names(c: &mut Criterion) {
         {
             let labels = Labels::<NaiveLabelNameCheckerV3>::from(tuples.as_slice());
             group.bench_with_input(BenchmarkId::new("naive_v3", case), case, |b, _| {
+                b.iter(|| black_box(labels.check_names()))
+            });
+        }
+
+        {
+            let labels = Labels::<NaiveLabelNameCheckerV4>::from(tuples.as_slice());
+            group.bench_with_input(BenchmarkId::new("naive_v4", case), case, |b, _| {
                 b.iter(|| black_box(labels.check_names()))
             });
         }
