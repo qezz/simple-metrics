@@ -1,12 +1,6 @@
 use std::collections::{btree_map, BTreeMap};
 
-use regex::Regex;
-
 use crate::Error;
-
-lazy_static::lazy_static! {
-    static ref LABEL_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
-}
 
 /// Internal representation of sample labels
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,9 +112,34 @@ impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> Fro
     }
 }
 
+// Somehow the manual ascii check shows higher performans than using
+// the set of `is_ascii_*()` methods.
+//
+// See https://github.com/qezz/simple-metrics/pull/5 for some details.
+#[allow(clippy::manual_is_ascii_check)]
+#[inline(always)]
+pub fn is_valid_label_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+
+    if let Some(&first) = bytes.first() {
+        if !((b'A'..=b'Z').contains(&first) || (b'a'..=b'z').contains(&first) || first == b'_') {
+            return false;
+        }
+
+        bytes.iter().skip(1).all(|&b| {
+            (b'A'..=b'Z').contains(&b)
+                || (b'a'..=b'z').contains(&b)
+                || (b'0'..=b'9').contains(&b)
+                || b == b'_'
+        })
+    } else {
+        false
+    }
+}
+
 pub fn check_labels(labels: &Labels) -> Result<(), Error> {
     for name in labels.keys() {
-        if !LABEL_NAME_RE.is_match(name) {
+        if !is_valid_label_name(name) {
             return Err(Error::InvalidLabelName(name.to_string()));
         }
     }
