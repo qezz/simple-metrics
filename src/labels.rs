@@ -112,7 +112,7 @@ impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> Fro
     }
 }
 
-// Somehow the manual ascii check shows higher performans than using
+// Somehow the manual ascii check shows higher performance than using
 // the set of `is_ascii_*()` methods.
 //
 // See https://github.com/qezz/simple-metrics/pull/5 for some details.
