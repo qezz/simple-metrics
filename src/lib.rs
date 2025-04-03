@@ -514,4 +514,25 @@ namespace_worker_health{name="\"b\"",process="simple-metrics"} 0
 "#;
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn invalid_metric_name() {
+        let starting_with_a_digit = MetricDef::new(
+            "1starting_with_a_digit",
+            "starting with a digit",
+            MetricType::Gauge,
+        );
+        assert!(starting_with_a_digit.is_err());
+
+        let has_spaces = MetricDef::new(
+            "service health",
+            "has spaces in the metric name",
+            MetricType::Gauge,
+        );
+        assert!(has_spaces.is_err());
+
+        let has_weird_chars =
+            MetricDef::new("dobrý_den", "has non ascii characters", MetricType::Gauge);
+        assert!(has_weird_chars.is_err());
+    }
 }
