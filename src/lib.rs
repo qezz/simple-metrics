@@ -1,14 +1,8 @@
-use regex::Regex;
-
 pub mod labels;
 pub mod store;
 
 pub use labels::Labels;
 pub use store::MetricStore;
-
-lazy_static::lazy_static! {
-    static ref METRIC_NAME_RE: Regex = Regex::new(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$").unwrap();
-}
 
 /// Internal trait for rendering a collection of metrics into a
 /// string.
@@ -165,6 +159,32 @@ impl std::fmt::Display for MetricType {
     }
 }
 
+#[allow(clippy::manual_is_ascii_check)]
+#[inline(always)]
+pub fn is_valid_metric_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+
+    if let Some(&first) = bytes.first() {
+        if !((b'A'..=b'Z').contains(&first)
+            || (b'a'..=b'z').contains(&first)
+            || first == b'_'
+            || first == b':')
+        {
+            return false;
+        }
+
+        bytes.iter().skip(1).all(|&b| {
+            (b'A'..=b'Z').contains(&b)
+                || (b'a'..=b'z').contains(&b)
+                || (b'0'..=b'9').contains(&b)
+                || b == b'_'
+                || b == b':'
+        })
+    } else {
+        false
+    }
+}
+
 /// MetricDef represents a metric definition.
 ///
 /// A metric definition consists of a name, a help string, and a
@@ -180,7 +200,7 @@ pub struct MetricDef {
 /// Metric definition, including its name, help string, and metric type
 impl MetricDef {
     pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
-        if !METRIC_NAME_RE.is_match(name) {
+        if !is_valid_metric_name(name) {
             return Err(Error::InvalidMetricName(name.to_string()));
         }
 

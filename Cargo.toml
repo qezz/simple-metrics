@@ -12,5 +12,3 @@ license = "MIT OR Apache-2.0"
 keywords = ["metrics", "telemetry", "prometheus"]
 
 [dependencies]
-lazy_static = "1.5.0"
-regex = "1.10.5"
