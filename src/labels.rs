@@ -1,16 +1,29 @@
-use std::collections::{btree_map, BTreeMap};
+use std::{
+    collections::{btree_map, BTreeMap},
+    sync::Arc,
+};
 
-use crate::Error;
+use crate::{interner::StringInterner, Error};
 
 /// Internal representation of sample labels
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Labels {
-    inner: BTreeMap<String, String>,
+#[derive(Debug, Clone)]
+pub struct Labels<'a> {
+    interner: &'a StringInterner,
+    inner: BTreeMap<Arc<String>, Arc<String>>,
 }
 
-impl Labels {
+impl<'a> PartialEq for Labels<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<'a> Eq for Labels<'a> {}
+
+impl<'a> Labels<'a> {
     pub fn new() -> Self {
         Self {
+            interner: &StringInterner::new(),
             inner: BTreeMap::new(),
         }
     }
@@ -29,14 +42,17 @@ impl Labels {
         K: Into<String>,
         V: Into<String>,
     {
-        self.inner.insert(key.into(), value.into());
+        let k = self.interner.intern(&key.into());
+        let v = self.interner.intern(&value.into());
+
+        self.inner.insert(k, v);
     }
 
-    pub fn iter(&self) -> btree_map::Iter<String, String> {
+    pub fn iter(&self) -> btree_map::Iter<Arc<String>, Arc<String>> {
         self.inner.iter()
     }
 
-    pub fn keys(&self) -> btree_map::Keys<String, String> {
+    pub fn keys(&self) -> btree_map::Keys<Arc<String>, Arc<String>> {
         self.inner.keys()
     }
 
@@ -56,42 +72,44 @@ impl Labels {
     }
 }
 
-impl Default for Labels {
+impl Default for Labels<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoIterator for Labels {
-    type Item = (String, String);
-    type IntoIter = btree_map::IntoIter<String, String>;
+impl IntoIterator for Labels<'_> {
+    type Item = (Arc<String>, Arc<String>);
+    type IntoIter = btree_map::IntoIter<Arc<String>, Arc<String>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()
     }
 }
 
-impl Extend<(String, String)> for Labels {
-    fn extend<T: IntoIterator<Item = (String, String)>>(&mut self, iter: T) {
+impl Extend<(Arc<String>, Arc<String>)> for Labels<'_> {
+    fn extend<T: IntoIterator<Item = (Arc<String>, Arc<String>)>>(&mut self, iter: T) {
         self.inner.extend(iter)
     }
 }
 
-impl<T, U> FromIterator<(T, U)> for Labels
+impl<T, U> FromIterator<(T, U)> for Labels<'_>
 where
     T: Into<String>,
     U: Into<String>,
 {
     fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
-        let mut map = BTreeMap::new();
+        let mut labels = Labels::new();
+
         for (key, value) in iter {
-            map.insert(key.into(), value.into());
+            labels.insert(key, value)
         }
-        Labels { inner: map }
+
+        labels
     }
 }
 
-impl<'a, T, U> From<&'a [(T, U)]> for Labels
+impl<'a, T, U> From<&'a [(T, U)]> for Labels<'_>
 where
     T: Into<String> + AsRef<str> + 'a,
     U: Into<String> + AsRef<str> + 'a,
@@ -105,7 +123,7 @@ where
 }
 
 impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]>
-    for Labels
+    for Labels<'_>
 {
     fn from(value: [(K, V); N]) -> Self {
         value.iter().cloned().collect()

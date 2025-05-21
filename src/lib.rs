@@ -1,3 +1,4 @@
+pub mod interner;
 pub mod labels;
 pub mod store;
 
