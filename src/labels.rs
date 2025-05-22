@@ -1,11 +1,14 @@
-use std::collections::{btree_map, BTreeMap};
+use std::{
+    collections::{btree_map, BTreeMap},
+    rc::Rc,
+};
 
-use crate::Error;
+use crate::{cache::InternedString, Error};
 
 /// Internal representation of sample labels
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Labels {
-    inner: BTreeMap<String, String>,
+    inner: BTreeMap<InternedString, InternedString>,
 }
 
 impl Labels {
@@ -17,26 +20,37 @@ impl Labels {
 
     pub fn with<K, V>(mut self, key: K, value: V) -> Self
     where
-        K: Into<String>,
-        V: Into<String>,
+        K: AsRef<str>,
+        V: AsRef<str>,
     {
         self.insert(key, value);
         self
     }
 
+    pub fn merged_with(&self, static_labels: &Labels) -> BTreeMap<InternedString, InternedString> {
+        let mut merged = static_labels.inner.clone();
+        merged.extend(self.inner.iter().map(|(k, v)| (k.clone(), v.clone())));
+        merged
+    }
+
     pub fn insert<K, V>(&mut self, key: K, value: V)
     where
-        K: Into<String>,
-        V: Into<String>,
+        K: AsRef<str>,
+        V: AsRef<str>,
     {
-        self.inner.insert(key.into(), value.into());
+        self.inner
+            .insert(Rc::from(key.as_ref()), Rc::from(value.as_ref()));
     }
 
-    pub fn iter(&self) -> btree_map::Iter<String, String> {
-        self.inner.iter()
+    // pub fn iter(&self) -> btree_map::Iter<String, String> {
+    //     self.inner.iter().map(|(k, v)| (k.as_ref(), v.as_ref()))
+    // }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.inner.iter().map(|(k, v)| (k.as_ref(), v.as_ref()))
     }
 
-    pub fn keys(&self) -> btree_map::Keys<String, String> {
+    pub fn keys(&self) -> btree_map::Keys<InternedString, InternedString> {
         self.inner.keys()
     }
 
@@ -63,29 +77,30 @@ impl Default for Labels {
 }
 
 impl IntoIterator for Labels {
-    type Item = (String, String);
-    type IntoIter = btree_map::IntoIter<String, String>;
+    type Item = (InternedString, InternedString);
+    // type IntoIter = btree_map::IntoIter<String, String>;
+    type IntoIter = btree_map::IntoIter<InternedString, InternedString>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()
     }
 }
 
-impl Extend<(String, String)> for Labels {
-    fn extend<T: IntoIterator<Item = (String, String)>>(&mut self, iter: T) {
+impl Extend<(InternedString, InternedString)> for Labels {
+    fn extend<T: IntoIterator<Item = (InternedString, InternedString)>>(&mut self, iter: T) {
         self.inner.extend(iter)
     }
 }
 
 impl<T, U> FromIterator<(T, U)> for Labels
 where
-    T: Into<String>,
-    U: Into<String>,
+    T: AsRef<str>,
+    U: AsRef<str>,
 {
     fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in iter {
-            map.insert(key.into(), value.into());
+            map.insert(Rc::from(key.as_ref()), Rc::from(value.as_ref()));
         }
         Labels { inner: map }
     }
@@ -104,7 +119,7 @@ where
     }
 }
 
-impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]>
+impl<K: Ord + Clone + AsRef<str>, V: Clone + AsRef<str>, const N: usize> From<[(K, V); N]>
     for Labels
 {
     fn from(value: [(K, V); N]) -> Self {

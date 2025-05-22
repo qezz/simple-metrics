@@ -1,6 +1,8 @@
+pub mod cache;
 pub mod labels;
 pub mod store;
 
+use cache::LabelSetId;
 pub use labels::Labels;
 pub use store::MetricStore;
 
@@ -94,18 +96,30 @@ impl From<bool> for MetricValue {
 /// Sample holds a single measurement of metrics
 #[derive(Debug, Clone)]
 pub struct Sample {
-    labels: Labels,
+    // labels: Labels,
+    label_set_id: LabelSetId,
     value: MetricValue,
 }
 
 impl Sample {
-    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
-        labels::check_labels(labels)?;
+    // pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
+    //     labels::check_labels(labels)?;
 
-        Ok(Self {
-            labels: labels.clone(),
-            value: value.into(),
-        })
+    //     Ok(Self {
+    //         labels: labels.clone(),
+    //         value: value.into(),
+    //     })
+    // }
+
+    pub fn new_with_id(label_set_id: LabelSetId, value: MetricValue) -> Self {
+        Self {
+            label_set_id,
+            value,
+        }
+    }
+
+    pub fn label_set_id(&self) -> LabelSetId {
+        self.label_set_id
     }
 }
 
