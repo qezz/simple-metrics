@@ -1,15 +1,17 @@
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
+use crate::Labels;
+
 pub type InternedString = Rc<str>;
 pub type LabelSetId = u32;
 
 #[derive(Clone, Debug)]
 pub struct Cache {
-    label_sets: Vec<BTreeMap<InternedString, InternedString>>,
+    label_sets: Vec<Labels>,
 
     /// Lookup label set if it already has an id
-    cache: HashMap<BTreeMap<InternedString, InternedString>, LabelSetId>,
+    cache: HashMap<Labels, LabelSetId>,
 }
 
 impl Cache {
@@ -20,7 +22,7 @@ impl Cache {
         }
     }
 
-    pub fn intern(&mut self, labels: BTreeMap<InternedString, InternedString>) -> LabelSetId {
+    pub fn intern(&mut self, labels: Labels) -> LabelSetId {
         if let Some(&id) = self.cache.get(&labels) {
             id
         } else {
@@ -31,7 +33,7 @@ impl Cache {
         }
     }
 
-    pub fn get(&self, id: LabelSetId) -> Option<&BTreeMap<InternedString, InternedString>> {
+    pub fn get(&self, id: LabelSetId) -> Option<&Labels> {
         self.label_sets.get(id as usize)
     }
 }

@@ -6,7 +6,7 @@ use std::{
 use crate::{cache::InternedString, Error};
 
 /// Internal representation of sample labels
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Labels {
     inner: BTreeMap<InternedString, InternedString>,
 }
@@ -27,10 +27,11 @@ impl Labels {
         self
     }
 
-    pub fn merged_with(&self, static_labels: &Labels) -> BTreeMap<InternedString, InternedString> {
+    pub fn merged_with(&self, static_labels: &Labels) -> Labels {
         let mut merged = static_labels.inner.clone();
         merged.extend(self.inner.iter().map(|(k, v)| (k.clone(), v.clone())));
-        merged
+
+        Labels { inner: merged }
     }
 
     pub fn insert<K, V>(&mut self, key: K, value: V)

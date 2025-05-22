@@ -323,10 +323,12 @@ mod tests {
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            // store.add_sample(
+            //     ServiceMetric::WorkerHealth,
+            //     Sample::new(&common, s.health).unwrap(),
+            // );
+
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             let lbs = common.clone().with("client", s.client);
 
@@ -426,10 +428,7 @@ test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
@@ -478,10 +477,7 @@ service_height{name="b",process="simple-metrics"} 200
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
@@ -530,10 +526,7 @@ namespace_service_height{name="b",process="simple-metrics"} 200
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
         }
 
         let _cloned_store = store.clone();
