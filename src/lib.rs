@@ -1,6 +1,8 @@
+pub mod cache;
 pub mod labels;
 pub mod store;
 
+use cache::LabelSetId;
 pub use labels::Labels;
 pub use store::MetricStore;
 
@@ -94,18 +96,30 @@ impl From<bool> for MetricValue {
 /// Sample holds a single measurement of metrics
 #[derive(Debug, Clone)]
 pub struct Sample {
-    labels: Labels,
+    // labels: Labels,
+    label_set_id: LabelSetId,
     value: MetricValue,
 }
 
 impl Sample {
-    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
-        labels::check_labels(labels)?;
+    // pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
+    //     labels::check_labels(labels)?;
 
-        Ok(Self {
-            labels: labels.clone(),
-            value: value.into(),
-        })
+    //     Ok(Self {
+    //         labels: labels.clone(),
+    //         value: value.into(),
+    //     })
+    // }
+
+    pub fn new_with_id(label_set_id: LabelSetId, value: MetricValue) -> Self {
+        Self {
+            label_set_id,
+            value,
+        }
+    }
+
+    pub fn label_set_id(&self) -> LabelSetId {
+        self.label_set_id
     }
 }
 
@@ -309,10 +323,12 @@ mod tests {
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            // store.add_sample(
+            //     ServiceMetric::WorkerHealth,
+            //     Sample::new(&common, s.health).unwrap(),
+            // );
+
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             let lbs = common.clone().with("client", s.client);
 
@@ -412,10 +428,7 @@ test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
@@ -464,10 +477,7 @@ service_height{name="b",process="simple-metrics"} 200
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
@@ -516,10 +526,7 @@ namespace_service_height{name="b",process="simple-metrics"} 200
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
         }
 
         let _cloned_store = store.clone();

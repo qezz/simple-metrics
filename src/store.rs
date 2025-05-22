@@ -1,9 +1,10 @@
 use std::{collections::BTreeMap, hash::Hash};
 
-use crate::{Error, Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef};
+use crate::{cache::Cache, Error, Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef};
 
 #[derive(Clone, Debug)]
 pub struct MetricStore<K: ToMetricDef> {
+    cache: Cache,
     static_labels: Labels,
     samples: BTreeMap<K, Vec<Sample>>,
 }
@@ -17,6 +18,7 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore<K> {
 impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
     pub fn new() -> Self {
         Self {
+            cache: Cache::new(),
             static_labels: Labels::new(),
             samples: BTreeMap::new(),
         }
@@ -32,85 +34,152 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         }
     }
 
-    /// Add Sample to metric
-    pub fn add_sample(&mut self, to_metric: K, sample: Sample) {
-        let v = self.samples.entry(to_metric).or_default();
-        v.push(sample);
-    }
+    // /// Add Sample to metric
+    // pub fn add_sample(&mut self, to_metric: K, sample: Sample) {
+    //     // let v = self.samples.entry(to_metric).or_default();
+    //     // v.push(sample);
+    //     // let merged_labels = labels.merge_with(&self.static_labels);
+    //     // let label_set_id = self.label_cache.intern(merged_labels);
+    //     // let sample = Sample::new_with_id(label_set_id, value.into());
 
-    /// Add value to metric
-    pub fn add_value<V: Into<MetricValue>>(
+    //     // self.samples.entry(metric).or_insert_with(Vec::new).push(sample);
+    //     // Ok(())
+    // }
+
+    // /// Add value to metric
+    // pub fn add_value<V: Into<MetricValue>>(
+    //     &mut self,
+    //     to_metric: K,
+    //     labels: &Labels,
+    //     value: V,
+    // ) -> Result<(), Error> {
+    //     let merged_labels = labels.merged_with(&self.static_labels);
+    //     let label_set_id = self.cache.intern(merged_labels);
+    //     let sample = Sample::new_with_id(label_set_id, value.into());
+
+    //     self.samples.entry(metric).or_insert_with(Vec::new).push(sample);
+
+    //     Ok(())
+    // }
+
+    pub fn add_sample<V>(
         &mut self,
-        to_metric: K,
+        metric: K,
         labels: &Labels,
         value: V,
-    ) -> Result<(), Error> {
-        let sample = Sample::new(labels, value)?;
-        self.add_sample(to_metric, sample);
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        V: Into<MetricValue>,
+    {
+        let merged_labels = labels.merged_with(&self.static_labels);
+        let label_set_id = self.cache.intern(merged_labels);
+        let sample = Sample::new_with_id(label_set_id, value.into());
+
+        self.samples.entry(metric).or_default().push(sample);
 
         Ok(())
     }
 
-    /// Add value to metric if it's `Some(..)`, skip if it's `None`
-    pub fn maybe_add_value<V: Into<MetricValue>>(
+    // /// Add value to metric if it's `Some(..)`, skip if it's `None`
+    // pub fn maybe_add_value<V: Into<MetricValue>>(
+    //     &mut self,
+    //     to_metric: K,
+    //     labels: &Labels,
+    //     maybe_value: Option<V>,
+    // ) -> Result<(), Error> {
+    //     if let Some(value) = maybe_value {
+    //         self.add_value(to_metric, labels, value)?
+    //     }
+
+    //     Ok(())
+    // }
+
+    pub fn add_value<V>(
         &mut self,
-        to_metric: K,
+        metric: K,
         labels: &Labels,
-        maybe_value: Option<V>,
-    ) -> Result<(), Error> {
-        if let Some(value) = maybe_value {
-            self.add_value(to_metric, labels, value)?
-        }
+        value: V,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        V: Into<MetricValue>,
+    {
+        self.add_sample(metric, labels, value)
+    }
 
+    pub fn maybe_add_value<V>(
+        &mut self,
+        metric: K,
+        labels: &Labels,
+        value: Option<V>,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        V: Into<MetricValue>,
+    {
+        if let Some(v) = value {
+            self.add_value(metric, labels, v)?;
+        }
         Ok(())
     }
 
-    /// Include static labels to all samples, and return the inner
-    /// representation.
-    ///
-    /// Useful if you need to merge multiple MetricStore instances
-    /// together.
-    pub fn to_rich_samples(self) -> BTreeMap<K, Vec<Sample>> {
-        let mut rich_data = BTreeMap::new();
+    // /// Include static labels to all samples, and return the inner
+    // /// representation.
+    // ///
+    // /// Useful if you need to merge multiple MetricStore instances
+    // /// together.
+    // pub fn to_rich_samples(self) -> BTreeMap<K, Vec<Sample>> {
+    //     let mut rich_data = BTreeMap::new();
 
-        for (k, samples) in self.samples {
-            let mut new_samples = vec![];
+    //     for (k, samples) in self.samples {
+    //         let mut new_samples = vec![];
 
-            for s in samples {
-                let mut labels = s.labels.clone();
-                labels.extend(self.static_labels.clone());
+    //         for s in samples {
+    //             let mut labels = s.labels.clone();
+    //             labels.extend(self.static_labels.clone());
 
-                new_samples.push(Sample {
-                    labels,
-                    value: s.value,
-                });
-            }
+    //             new_samples.push(Sample {
+    //                 labels,
+    //                 value: s.value,
+    //             });
+    //         }
 
-            rich_data.insert(k, new_samples);
-        }
+    //         rich_data.insert(k, new_samples);
+    //     }
 
-        rich_data
-    }
+    //     rich_data
+    // }
 
-    /// Include static labels to all samples.
-    ///
-    /// It is a destructive operation, the static labels will be
-    /// emptied after this operation.
-    ///
-    /// Useful if you need to merge multiple MetricStore instances
-    /// together.
-    pub fn bake_static_labels(&mut self) {
-        for samples in self.samples.values_mut() {
-            for s in samples {
-                s.labels.extend(self.static_labels.clone());
-            }
-        }
+    // /// Include static labels to all samples.
+    // ///
+    // /// It is a destructive operation, the static labels will be
+    // /// emptied after this operation.
+    // ///
+    // /// Useful if you need to merge multiple MetricStore instances
+    // /// together.
+    // pub fn bake_static_labels(&mut self) {
+    //     for samples in self.samples.values_mut() {
+    //         for s in samples {
+    //             s.label_set_id.extend(self.static_labels.clone());
+    //         }
+    //     }
 
-        self.static_labels = Labels::new();
-    }
+    //     self.static_labels = Labels::new();
+    // }
 
     pub fn extend_samples(&mut self, other: &MetricStore<K>) {
         self.samples.extend(other.clone().samples)
+    }
+
+    pub fn merge_with(&mut self, other: MetricStore<K>) {
+        for (met, samples) in other.samples.iter() {
+            for sample in samples {
+                let id = sample.label_set_id();
+                let labels = other.cache.get(id);
+
+                let lbs = labels.unwrap();
+                self.add_sample(met.clone(), lbs, sample.value.clone())
+                    .unwrap();
+            }
+        }
     }
 }
 
@@ -124,8 +193,13 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
             let mut metrics = vec![];
 
             for s in samples {
-                let mut labels: Labels = s.labels.clone();
-                labels.extend(self.static_labels.clone());
+                // let mut labels: Labels = self.cache.
+                // labels.extend(self.static_labels.clone());
+
+                let labels = match self.cache.get(s.label_set_id) {
+                    Some(lbs) => lbs,
+                    None => continue,
+                };
 
                 let rendered = match namespace {
                     Some(ref ns) => {
@@ -169,58 +243,88 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
     }
 }
 
-impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
-    fn render_into_metrics(&self, namespace: Option<&str>) -> String {
-        let len = self.len();
-        let mut all_metrics: Vec<String> = Vec::with_capacity(len);
+pub fn merged_stores<K>(left: MetricStore<K>, right: MetricStore<K>) -> MetricStore<K>
+where
+    K: ToMetricDef + Eq + PartialEq + Hash + Ord,
+{
+    let mut res = left.clone();
 
-        for (m, samples) in self {
-            let metric_def = m.to_metric_def();
+    for (met, samples) in right.samples.iter() {
+        for sample in samples {
+            let id = sample.label_set_id();
+            let labels = right.cache.get(id);
 
-            let mut metrics = vec![];
+            // if let Some(lbs) = labels {
+            //     res.add_sample(met.clone(), lbs, sample.value.clone())
+            //         .unwrap();
+            // }
 
-            for s in samples {
-                let rendered = match namespace {
-                    Some(ref ns) => {
-                        format!(
-                            "{}_{}{{{}}} {}",
-                            ns,
-                            metric_def.name,
-                            s.labels.render(),
-                            s.value.render()
-                        )
-                    }
-                    None => {
-                        format!(
-                            "{}{{{}}} {}",
-                            metric_def.name,
-                            s.labels.render(),
-                            s.value.render()
-                        )
-                    }
-                };
-
-                metrics.push(rendered);
-            }
-
-            // TODO make sure no same labels exist?
-            // TODO make sure there are no control characters in the labels values
-
-            let rendered = format!(
-                "# HELP {} {}\n# TYPE {} {}\n{}\n",
-                metric_def.name,
-                metric_def.help,
-                metric_def.name,
-                metric_def.metric_type,
-                metrics.join("\n")
-            );
-
-            all_metrics.push(rendered);
+            let lbs = labels.unwrap();
+            res.add_sample(met.clone(), lbs, sample.value.clone())
+                .unwrap();
         }
-
-        all_metrics.join("\n")
     }
+
+    res
 }
+
+// impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
+//     fn render_into_metrics(&self, namespace: Option<&str>) -> String {
+//         let len = self.len();
+//         let mut all_metrics: Vec<String> = Vec::with_capacity(len);
+
+//         for (m, samples) in self {
+//             let metric_def = m.to_metric_def();
+
+//             let mut metrics = vec![];
+
+//             for s in samples {
+//                 let labels = match self.cache.get(s.label_set_id) {
+//                     Some(lbs) => lbs,
+//                     None => continue,
+//                 };
+
+//                 let rendered = match namespace {
+//                     Some(ref ns) => {
+//                         format!(
+//                             "{}_{}{{{}}} {}",
+//                             ns,
+//                             metric_def.name,
+//                             s.labels.render(),
+//                             s.value.render()
+//                         )
+//                     }
+//                     None => {
+//                         format!(
+//                             "{}{{{}}} {}",
+//                             metric_def.name,
+//                             s.labels.render(),
+//                             s.value.render()
+//                         )
+//                     }
+//                 };
+
+//                 metrics.push(rendered);
+//             }
+
+//             // TODO make sure no same labels exist?
+//             // TODO make sure there are no control characters in the labels values
+
+//             let rendered = format!(
+//                 "# HELP {} {}\n# TYPE {} {}\n{}\n",
+//                 metric_def.name,
+//                 metric_def.help,
+//                 metric_def.name,
+//                 metric_def.metric_type,
+//                 metrics.join("\n")
+//             );
+
+//             all_metrics.push(rendered);
+//         }
+
+//         all_metrics.join("\n")
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -254,29 +358,31 @@ mod tests {
         for s in states {
             let common = Labels::from([("name", s.name)]);
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            // store.add_sample(
+            //     ServiceMetric::WorkerHealth,
+            //     Sample::new(&common, s.health).unwrap(),
+            // );
+
+            store.add_sample(ServiceMetric::WorkerHealth, &common, s.health);
 
             store
                 .add_value(ServiceMetric::ServiceHeight, &common, s.height)
                 .expect("valid");
         }
 
-        let expected = store.clone().render_into_metrics(None);
+        // let expected = store.clone().render_into_metrics(None);
 
-        assert!(!store.static_labels.is_empty());
-        store.bake_static_labels();
+        // // assert!(!store.static_labels.is_empty());
+        // // store.bake_static_labels();
 
-        let actual = store.render_into_metrics(None);
+        // let actual = store.render_into_metrics(None);
 
-        assert_eq!(actual, expected);
-        assert!(store.static_labels.is_empty());
+        // assert_eq!(actual, expected);
+        // assert!(store.static_labels.is_empty());
 
-        // Calling `bake_static_labels()` again should not change the output.
-        store.bake_static_labels();
-        let actual = store.render_into_metrics(None);
-        assert_eq!(actual, expected);
+        // // Calling `bake_static_labels()` again should not change the output.
+        // // store.bake_static_labels();
+        // let actual = store.render_into_metrics(None);
+        // assert_eq!(actual, expected);
     }
 }
