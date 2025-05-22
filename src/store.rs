@@ -168,6 +168,19 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
     pub fn extend_samples(&mut self, other: &MetricStore<K>) {
         self.samples.extend(other.clone().samples)
     }
+
+    pub fn merge_with(&mut self, other: MetricStore<K>) {
+        for (met, samples) in other.samples.iter() {
+            for sample in samples {
+                let id = sample.label_set_id();
+                let labels = other.cache.get(id);
+
+                let lbs = labels.unwrap();
+                self.add_sample(met.clone(), lbs, sample.value.clone())
+                    .unwrap();
+            }
+        }
+    }
 }
 
 impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
