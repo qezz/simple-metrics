@@ -5,19 +5,19 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct MetricStore<K: ToMetricDef> {
+pub struct MetricStore<'a, K: ToMetricDef> {
     interner: StringInterner,
     static_labels: Labels,
-    samples: BTreeMap<K, Vec<Sample>>,
+    samples: BTreeMap<K, Vec<Sample<'a>>>,
 }
 
-impl< K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore< K> {
+impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore<'_, K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
+impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<'_, K> {
     pub fn new() -> Self {
         Self {
             interner: StringInterner::new(),
@@ -36,20 +36,26 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         }
     }
 
+    pub fn interner<'a>(&'a self) -> &'a StringInterner {
+        &self.interner
+    }
+}
+
+impl<'a, 'b: 'a, K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<'a, K> {
     /// Add Sample to metric
-    pub fn add_sample(&mut self, to_metric: K, sample: Sample) {
+    pub fn add_sample(&mut self, to_metric: K, sample: Sample<'a>) {
         let v = self.samples.entry(to_metric).or_default();
         v.push(sample);
     }
 
     /// Add value to metric
     pub fn add_value<V: Into<MetricValue>>(
-        &mut self,
+        &'a mut self,
         to_metric: K,
         labels: &Labels,
         value: V,
     ) -> Result<(), Error> {
-        let sample = Sample::new(labels, value)?;
+        let sample = Sample::new(&mut self.interner, labels, value)?;
         self.add_sample(to_metric, sample);
 
         Ok(())
@@ -69,32 +75,32 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         Ok(())
     }
 
-    /// Include static labels to all samples, and return the inner
-    /// representation.
-    ///
-    /// Useful if you need to merge multiple MetricStore instances
-    /// together.
-    pub fn to_rich_samples(self) -> BTreeMap<K, Vec<Sample>> {
-        let mut rich_data = BTreeMap::new();
+    // /// Include static labels to all samples, and return the inner
+    // /// representation.
+    // ///
+    // /// Useful if you need to merge multiple MetricStore instances
+    // /// together.
+    // pub fn to_rich_samples<'b>(self) -> BTreeMap<K, Vec<Sample<'b>>> {
+    //     let mut rich_data = BTreeMap::new();
 
-        for (k, samples) in self.samples {
-            let mut new_samples = vec![];
+    //     for (k, samples) in self.samples {
+    //         let mut new_samples = vec![];
 
-            for s in samples {
-                let mut labels = s.labels.clone();
-                labels.extend(self.static_labels.clone());
+    //         for s in samples {
+    //             let mut labels = s.labels.clone();
+    //             labels.extend(self.static_labels.clone());
 
-                new_samples.push(Sample {
-                    labels,
-                    value: s.value,
-                });
-            }
+    //             new_samples.push(Sample {
+    //                 labels,
+    //                 value: s.value,
+    //             });
+    //         }
 
-            rich_data.insert(k, new_samples);
-        }
+    //         rich_data.insert(k, new_samples);
+    //     }
 
-        rich_data
-    }
+    //     rich_data
+    // }
 
     /// Include static labels to all samples.
     ///
@@ -118,7 +124,7 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
     }
 }
 
-impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
+impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<'_, K> {
     fn render_into_metrics(&self, namespace: Option<&str>) -> String {
         let mut all_metrics: Vec<String> = Vec::with_capacity(self.samples.keys().len());
 
@@ -173,7 +179,7 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
     }
 }
 
-impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
+impl<'a, K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample<'a>>> {
     fn render_into_metrics(&self, namespace: Option<&str>) -> String {
         let len = self.len();
         let mut all_metrics: Vec<String> = Vec::with_capacity(len);
@@ -260,7 +266,7 @@ mod tests {
 
             store.add_sample(
                 ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
+                Sample::new(&store.interner, &common, s.health).unwrap(),
             );
 
             store

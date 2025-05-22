@@ -2,6 +2,7 @@ pub mod interner;
 pub mod labels;
 pub mod store;
 
+use interner::StringInterner;
 pub use labels::Labels;
 pub use store::MetricStore;
 
@@ -94,16 +95,18 @@ impl From<bool> for MetricValue {
 
 /// Sample holds a single measurement of metrics
 #[derive(Debug, Clone)]
-pub struct Sample {
+pub struct Sample<'a> {
+    interner: &'a StringInterner,
     labels: Labels,
     value: MetricValue,
 }
 
-impl Sample {
-    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
+impl<'a> Sample<'a> {
+    pub fn new<T: Into<MetricValue>>(interner: &'a StringInterner, labels: &Labels, value: T) -> Result<Self, Error> {
         labels::check_labels(labels)?;
 
         Ok(Self {
+            interner,
             labels: labels.clone(),
             value: value.into(),
         })
