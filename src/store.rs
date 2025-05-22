@@ -230,6 +230,31 @@ impl<K: ToMetricDef> RenderIntoMetrics for MetricStore<K> {
     }
 }
 
+pub fn merged_stores<K>(left: MetricStore<K>, right: MetricStore<K>) -> MetricStore<K>
+where
+    K: ToMetricDef + Eq + PartialEq + Hash + Ord,
+{
+    let mut res = left.clone();
+
+    for (met, samples) in right.samples.iter() {
+        for sample in samples {
+            let id = sample.label_set_id();
+            let labels = right.cache.get(id);
+
+            // if let Some(lbs) = labels {
+            //     res.add_sample(met.clone(), lbs, sample.value.clone())
+            //         .unwrap();
+            // }
+
+            let lbs = labels.unwrap();
+            res.add_sample(met.clone(), lbs, sample.value.clone())
+                .unwrap();
+        }
+    }
+
+    res
+}
+
 // impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
 //     fn render_into_metrics(&self, namespace: Option<&str>) -> String {
 //         let len = self.len();
