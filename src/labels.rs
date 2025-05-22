@@ -39,8 +39,10 @@ impl Labels {
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        self.inner
-            .insert(Rc::from(key.as_ref()), Rc::from(value.as_ref()));
+        self.inner.insert(
+            InternedString::from(key.as_ref()),
+            InternedString::from(value.as_ref()),
+        );
     }
 
     // pub fn iter(&self) -> btree_map::Iter<String, String> {
@@ -101,7 +103,10 @@ where
     fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in iter {
-            map.insert(Rc::from(key.as_ref()), Rc::from(value.as_ref()));
+            map.insert(
+                InternedString::from(key.as_ref()),
+                InternedString::from(value.as_ref()),
+            );
         }
         Labels { inner: map }
     }

@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::Labels;
 
-pub type InternedString = Rc<str>;
+pub type InternedString = Arc<str>;
 pub type LabelSetId = u32;
 
 #[derive(Clone, Debug)]
