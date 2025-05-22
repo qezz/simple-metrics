@@ -1,17 +1,17 @@
-use std::{collections::BTreeMap, hash::Hash};
+use std::{collections::BTreeMap, hash::Hash, sync::Arc};
 
 use crate::{
     interner::StringInterner, Error, Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef,
 };
 
 #[derive(Clone, Debug)]
-pub struct MetricStore<'a, K: ToMetricDef> {
+pub struct MetricStore<K: ToMetricDef> {
     interner: StringInterner,
-    static_labels: &'a Labels<'a>,
+    static_labels: Labels,
     samples: BTreeMap<K, Vec<Sample>>,
 }
 
-impl<'a, K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore<'a, K> {
+impl< K: ToMetricDef + Eq + PartialEq + Hash + Ord> Default for MetricStore< K> {
     fn default() -> Self {
         Self::new()
     }

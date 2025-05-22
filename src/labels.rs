@@ -7,23 +7,23 @@ use crate::{interner::StringInterner, Error};
 
 /// Internal representation of sample labels
 #[derive(Debug, Clone)]
-pub struct Labels<'a> {
-    interner: &'a StringInterner,
+pub struct Labels {
+    interner: StringInterner,
     inner: BTreeMap<Arc<String>, Arc<String>>,
 }
 
-impl<'a> PartialEq for Labels<'a> {
+impl PartialEq for Labels {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }
 }
 
-impl<'a> Eq for Labels<'a> {}
+impl Eq for Labels {}
 
-impl<'a> Labels<'a> {
+impl Labels {
     pub fn new() -> Self {
         Self {
-            interner: &StringInterner::new(),
+            interner: StringInterner::new(),
             inner: BTreeMap::new(),
         }
     }
@@ -72,13 +72,13 @@ impl<'a> Labels<'a> {
     }
 }
 
-impl Default for Labels<'_> {
+impl Default for Labels {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoIterator for Labels<'_> {
+impl IntoIterator for Labels {
     type Item = (Arc<String>, Arc<String>);
     type IntoIter = btree_map::IntoIter<Arc<String>, Arc<String>>;
 
@@ -87,13 +87,13 @@ impl IntoIterator for Labels<'_> {
     }
 }
 
-impl Extend<(Arc<String>, Arc<String>)> for Labels<'_> {
+impl Extend<(Arc<String>, Arc<String>)> for Labels {
     fn extend<T: IntoIterator<Item = (Arc<String>, Arc<String>)>>(&mut self, iter: T) {
         self.inner.extend(iter)
     }
 }
 
-impl<T, U> FromIterator<(T, U)> for Labels<'_>
+impl<T, U> FromIterator<(T, U)> for Labels
 where
     T: Into<String>,
     U: Into<String>,
@@ -109,7 +109,7 @@ where
     }
 }
 
-impl<'a, T, U> From<&'a [(T, U)]> for Labels<'_>
+impl<'a, T, U> From<&'a [(T, U)]> for Labels
 where
     T: Into<String> + AsRef<str> + 'a,
     U: Into<String> + AsRef<str> + 'a,
@@ -123,7 +123,7 @@ where
 }
 
 impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]>
-    for Labels<'_>
+    for Labels
 {
     fn from(value: [(K, V); N]) -> Self {
         value.iter().cloned().collect()

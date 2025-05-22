@@ -1,15 +1,16 @@
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct StringInterner {
-    set: HashSet<Arc<String>>,
+    set: Arc<Mute<HashSet<Arc<String>>>,
 }
 
 impl StringInterner {
     pub fn new() -> Self {
         StringInterner {
-            set: HashSet::new(),
+            set: Rc::new(HashSet::new()),
         }
     }
 
