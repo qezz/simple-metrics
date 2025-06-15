@@ -342,22 +342,22 @@ mod tests {
         }
 
         let actual = store.render_into_metrics(Some(&namespace));
-        let expected = r#"# HELP worker_health worker health
-# TYPE worker_health gauge
+        let expected = r#"# HELP test_exporter_worker_health worker health
+# TYPE test_exporter_worker_health gauge
 test_exporter_worker_health{name="a",process="simple-metrics"} 1
 test_exporter_worker_health{name="b",process="simple-metrics"} 1
 test_exporter_worker_health{name="c",process="simple-metrics"} 1
 test_exporter_worker_health{name="d",process="simple-metrics"} 0
 
-# HELP service_height service height
-# TYPE service_height gauge
+# HELP test_exporter_service_height service height
+# TYPE test_exporter_service_height gauge
 test_exporter_service_height{client="woot",name="a",process="simple-metrics"} 100
 test_exporter_service_height{client="woot",name="b",process="simple-metrics"} 200
 test_exporter_service_height{client="meh",name="c",process="simple-metrics"} 300
 test_exporter_service_height{client="meh",name="d",process="simple-metrics"} 0
 
-# HELP service_delta service delta
-# TYPE service_delta gauge
+# HELP test_exporter_service_delta service delta
+# TYPE test_exporter_service_delta gauge
 test_exporter_service_delta{client="woot",name="a",process="simple-metrics",type="pos"} 1
 test_exporter_service_delta{client="woot",name="a",process="simple-metrics",type="neg"} -1
 test_exporter_service_delta{client="woot",name="b",process="simple-metrics",type="pos"} 2.2
@@ -367,14 +367,14 @@ test_exporter_service_delta{client="meh",name="c",process="simple-metrics",type=
 test_exporter_service_delta{client="meh",name="d",process="simple-metrics",type="pos"} 291283791287391300000
 test_exporter_service_delta{client="meh",name="d",process="simple-metrics",type="neg"} -291283791287391300000
 
-# HELP service_maybe service maybe
-# TYPE service_maybe gauge
+# HELP test_exporter_service_maybe service maybe
+# TYPE test_exporter_service_maybe gauge
 test_exporter_service_maybe{client="woot",name="a",process="simple-metrics"} 100
 test_exporter_service_maybe{client="woot",name="b",process="simple-metrics"} 100
 test_exporter_service_maybe{client="meh",name="c",process="simple-metrics"} 100
 
-# HELP service_maybe2 service maybe2
-# TYPE service_maybe2 gauge
+# HELP test_exporter_service_maybe2 service maybe2
+# TYPE test_exporter_service_maybe2 gauge
 test_exporter_service_maybe2{client="woot",name="a",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="woot",name="b",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
@@ -479,13 +479,13 @@ service_height{name="b",process="simple-metrics"} 200
         let actual = store.render_into_metrics(Some("namespace"));
         println!("{}", actual);
 
-        let expected = r#"# HELP worker_health worker health
-# TYPE worker_health gauge
+        let expected = r#"# HELP namespace_worker_health worker health
+# TYPE namespace_worker_health gauge
 namespace_worker_health{name="a",process="simple-metrics"} 1
 namespace_worker_health{name="b",process="simple-metrics"} 0
 
-# HELP service_height service height
-# TYPE service_height gauge
+# HELP namespace_service_height service height
+# TYPE namespace_service_height gauge
 namespace_service_height{name="a",process="simple-metrics"} 100
 namespace_service_height{name="b",process="simple-metrics"} 200
 "#;
@@ -527,8 +527,8 @@ namespace_service_height{name="b",process="simple-metrics"} 200
         let actual = store.render_into_metrics(Some("namespace"));
         println!("{}", actual);
 
-        let expected = r#"# HELP worker_health worker health
-# TYPE worker_health gauge
+        let expected = r#"# HELP namespace_worker_health worker health
+# TYPE namespace_worker_health gauge
 namespace_worker_health{name="\"a\"",process="simple-metrics"} 1
 namespace_worker_health{name="\"b\"",process="simple-metrics"} 0
 "#;
