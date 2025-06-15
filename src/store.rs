@@ -51,6 +51,21 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         Ok(())
     }
 
+    /// Add many values to metric
+    pub fn add_metrics_with_common_labels<V: Clone + Into<MetricValue>>(
+        &mut self,
+        common_labels: &Labels,
+        // metrics: Vec<(K, V)>,
+        metrics: &[(K, V)],
+    ) -> Result<(), Error> {
+        for (to_metric, value) in metrics.iter().cloned() {
+            let sample = Sample::new(common_labels, value)?;
+            self.add_sample(to_metric, sample);
+        }
+
+        Ok(())
+    }
+
     /// Add value to metric if it's `Some(..)`, skip if it's `None`
     pub fn maybe_add_value<V: Into<MetricValue>>(
         &mut self,

@@ -239,6 +239,8 @@ mod tests {
         ServiceDelta,
         Maybe,
         Maybe2,
+        ExtraA,
+        ExtraB,
     }
 
     impl ToMetricDef for ServiceMetric {
@@ -258,6 +260,12 @@ mod tests {
                 }
                 ServiceMetric::Maybe2 => {
                     MetricDef::new("service_maybe2", "service maybe2", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::ExtraA => {
+                    MetricDef::new("service_extra_a", "service extra a", MetricType::Gauge).unwrap()
+                }
+                ServiceMetric::ExtraB => {
+                    MetricDef::new("service_extra_b", "service extra b", MetricType::Gauge).unwrap()
                 }
             }
         }
@@ -339,6 +347,16 @@ mod tests {
             store
                 .add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta)
                 .expect("valid");
+
+            store
+                .add_metrics_with_common_labels(
+                    &common,
+                    &[
+                        (ServiceMetric::ExtraA, s.height),
+                        (ServiceMetric::ExtraB, s.height + 1),
+                    ],
+                )
+                .expect("valid");
         }
 
         let actual = store.render_into_metrics(Some(&namespace));
@@ -378,8 +396,27 @@ test_exporter_service_maybe{client="meh",name="c",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="woot",name="a",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="woot",name="b",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
+
+# HELP service_extra_a service extra a
+# TYPE service_extra_a gauge
+test_exporter_service_extra_a{name="a",process="simple-metrics"} 100
+test_exporter_service_extra_a{name="b",process="simple-metrics"} 200
+test_exporter_service_extra_a{name="c",process="simple-metrics"} 300
+test_exporter_service_extra_a{name="d",process="simple-metrics"} 0
+
+# HELP service_extra_b service extra b
+# TYPE service_extra_b gauge
+test_exporter_service_extra_b{name="a",process="simple-metrics"} 101
+test_exporter_service_extra_b{name="b",process="simple-metrics"} 201
+test_exporter_service_extra_b{name="c",process="simple-metrics"} 301
+test_exporter_service_extra_b{name="d",process="simple-metrics"} 1
 "#;
-        assert_eq!(actual, expected);
+        // assert_eq!(actual, expected);
+        if actual != expected {
+            println!("actual:\n{}", actual);
+            println!("expected:\n{}", expected);
+            panic!("");
+        }
     }
 
     pub struct SimpleState {
