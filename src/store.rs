@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, hash::Hash};
 
-use crate::{Error, Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef};
+use crate::{Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef};
 
 #[derive(Clone, Debug)]
 pub struct MetricStore<K: ToMetricDef> {
@@ -39,16 +39,9 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
     }
 
     /// Add value to metric
-    pub fn add_value<V: Into<MetricValue>>(
-        &mut self,
-        to_metric: K,
-        labels: &Labels,
-        value: V,
-    ) -> Result<(), Error> {
-        let sample = Sample::new(labels, value)?;
+    pub fn add_value<V: Into<MetricValue>>(&mut self, to_metric: K, labels: &Labels, value: V) {
+        let sample = Sample::new(labels, value);
         self.add_sample(to_metric, sample);
-
-        Ok(())
     }
 
     /// Add value to metric if it's `Some(..)`, skip if it's `None`
@@ -57,12 +50,10 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         to_metric: K,
         labels: &Labels,
         maybe_value: Option<V>,
-    ) -> Result<(), Error> {
+    ) {
         if let Some(value) = maybe_value {
-            self.add_value(to_metric, labels, value)?
+            self.add_value(to_metric, labels, value)
         }
-
-        Ok(())
     }
 
     /// Include static labels to all samples, and return the inner
@@ -240,9 +231,10 @@ impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
 #[cfg(test)]
 mod tests {
     use crate::{
+        labels_builder::LabelsBuilder,
         store::MetricStore,
         tests::{ServiceMetric, SimpleState},
-        Labels, RenderIntoMetrics, Sample,
+        RenderIntoMetrics, Sample,
     };
 
     #[test]
@@ -260,23 +252,20 @@ mod tests {
             },
         ];
 
-        let mut static_labels = Labels::new();
-        static_labels.insert("process", "simple-metrics");
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from([("name", s.name)]);
+            let common_builder = LabelsBuilder::from([("name", s.name)]);
+            let common = common_builder.build().expect("can't build labels");
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
-
-            store
-                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
-                .expect("valid");
+            store.add_sample(ServiceMetric::WorkerHealth, Sample::new(&common, s.health));
+            store.add_value(ServiceMetric::ServiceHeight, &common, s.height)
         }
 
         let expected = store.clone().render_into_metrics(None);

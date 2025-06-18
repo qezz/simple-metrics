@@ -1,7 +1,9 @@
 pub mod labels;
+pub mod labels_builder;
 pub mod store;
 
 pub use labels::Labels;
+pub use labels_builder::LabelsBuilder;
 pub use store::MetricStore;
 
 /// Internal trait for rendering a collection of metrics into a
@@ -99,17 +101,15 @@ pub struct Sample {
 }
 
 impl Sample {
-    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Result<Self, Error> {
-        labels::check_labels(labels)?;
-
-        Ok(Self {
+    pub fn new<T: Into<MetricValue>>(labels: &Labels, value: T) -> Self {
+        Self {
             labels: labels.clone(),
             value: value.into(),
-        })
+        }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     /// InvalidMetricName means the metric name doesn't comply with
     /// the Prometheus data model
@@ -219,7 +219,7 @@ pub trait ToMetricDef: Clone {
 
 #[cfg(test)]
 mod tests {
-    use crate::store::MetricStore;
+    use crate::{labels_builder::LabelsBuilder, store::MetricStore};
 
     use super::*;
 
@@ -300,45 +300,34 @@ mod tests {
             },
         ];
 
-        let static_labels = Labels::from([("process", "simple-metrics")]);
+        let static_labels_builder = LabelsBuilder::from([("process", "simple-metrics")]);
+        let static_labels = static_labels_builder.build().unwrap();
 
         let namespace = String::from("test_exporter");
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from([("name", s.name)]);
+            let common_builder = LabelsBuilder::from([("name", s.name)]);
+            let common = common_builder.build().unwrap();
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, Sample::new(&common, s.health));
 
-            let lbs = common.clone().with("client", s.client);
+            let lbs = common.builder().with("client", s.client).build().unwrap();
 
-            store
-                .add_value(ServiceMetric::ServiceHeight, &lbs, s.height)
-                .expect("valid");
+            store.add_value(ServiceMetric::ServiceHeight, &lbs, s.height);
 
             if let Some(maybe) = s.maybe {
-                store
-                    .add_value(ServiceMetric::Maybe, &lbs, maybe)
-                    .expect("valid");
+                store.add_value(ServiceMetric::Maybe, &lbs, maybe)
             }
 
-            store
-                .maybe_add_value(ServiceMetric::Maybe2, &lbs, s.maybe)
-                .expect("valid");
+            store.maybe_add_value(ServiceMetric::Maybe2, &lbs, s.maybe);
 
-            let lbs_p = lbs.clone().with("type", "pos");
-            store
-                .add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta)
-                .expect("valid");
+            let lbs_p = lbs.builder().with("type", "pos").build().unwrap();
+            store.add_value(ServiceMetric::ServiceDelta, &lbs_p, s.delta);
 
-            let lbs_n = lbs.clone().with("type", "neg");
-            store
-                .add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta)
-                .expect("valid");
+            let lbs_n = lbs.builder().with("type", "neg").build().unwrap();
+            store.add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta);
         }
 
         let actual = store.render_into_metrics(Some(&namespace));
@@ -403,23 +392,19 @@ test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
             },
         ];
 
-        let mut static_labels = Labels::new();
-        static_labels.insert("process", "simple-metrics");
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from([("name", s.name)]);
+            let common = LabelsBuilder::from([("name", s.name)]).build().unwrap();
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
-
-            store
-                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
-                .expect("valid");
+            store.add_sample(ServiceMetric::WorkerHealth, Sample::new(&common, s.health));
+            store.add_value(ServiceMetric::ServiceHeight, &common, s.height)
         }
 
         let _cloned_store = store.clone();
@@ -441,6 +426,57 @@ service_height{name="b",process="simple-metrics"} 200
     }
 
     #[test]
+    fn simple_with_labels_chain() {
+        let states = vec![
+            SimpleState {
+                name: "a".into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: "b".into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        let common_builder =
+            LabelsBuilder::from([("common_a", "some_value"), ("common_b", "other_value")]);
+
+        for s in states {
+            let state_labels = common_builder.clone().with("name", s.name).build().unwrap();
+
+            store.add_sample(
+                ServiceMetric::WorkerHealth,
+                Sample::new(&state_labels, s.health),
+            );
+            store.add_value(ServiceMetric::ServiceHeight, &state_labels, s.height)
+        }
+
+        let actual = store.render_into_metrics(None);
+
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+worker_health{common_a="some_value",common_b="other_value",name="a",process="simple-metrics"} 1
+worker_health{common_a="some_value",common_b="other_value",name="b",process="simple-metrics"} 0
+
+# HELP service_height service height
+# TYPE service_height gauge
+service_height{common_a="some_value",common_b="other_value",name="a",process="simple-metrics"} 100
+service_height{common_a="some_value",common_b="other_value",name="b",process="simple-metrics"} 200
+"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn simple_with_namespace() {
         let states = vec![
             SimpleState {
@@ -455,23 +491,19 @@ service_height{name="b",process="simple-metrics"} 200
             },
         ];
 
-        let mut static_labels = Labels::new();
-        static_labels.insert("process", "simple-metrics");
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from([("name", s.name)]);
+            let common = LabelsBuilder::from([("name", s.name)]).build().unwrap();
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
-
-            store
-                .add_value(ServiceMetric::ServiceHeight, &common, s.height)
-                .expect("valid");
+            store.add_sample(ServiceMetric::WorkerHealth, Sample::new(&common, s.health));
+            store.add_value(ServiceMetric::ServiceHeight, &common, s.height)
         }
 
         let _cloned_store = store.clone();
@@ -507,19 +539,18 @@ namespace_service_height{name="b",process="simple-metrics"} 200
             },
         ];
 
-        let mut static_labels = Labels::new();
-        static_labels.insert("process", "simple-metrics");
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
 
         let mut store: MetricStore<ServiceMetric> =
             MetricStore::new().with_static_labels(static_labels);
 
         for s in states {
-            let common = Labels::from([("name", s.name)]);
+            let common = LabelsBuilder::from([("name", s.name)]).build().unwrap();
 
-            store.add_sample(
-                ServiceMetric::WorkerHealth,
-                Sample::new(&common, s.health).unwrap(),
-            );
+            store.add_sample(ServiceMetric::WorkerHealth, Sample::new(&common, s.health));
         }
 
         let _cloned_store = store.clone();
