@@ -2,7 +2,20 @@ use std::collections::{btree_map, BTreeMap};
 
 use crate::labels_builder::LabelsBuilder;
 
-/// Internal representation of sample labels
+/// Opaque representation of sample labels
+///
+/// Use [LabelsBuilder] object to create a new set of labels.
+///
+/// # Examples
+/// ```
+/// use simple_metrics::LabelsBuilder;
+///
+/// let builder = LabelsBuilder::new().with("hello", "world");
+/// let res = builder.build();
+/// let labels = res.unwrap();
+/// assert_eq!(labels.len(), 1);
+///
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Labels {
     pub(crate) inner: BTreeMap<String, String>,
@@ -15,10 +28,25 @@ impl Labels {
         }
     }
 
+    /// Creates a new builder from the existing set of labels.
+    ///
+    /// # Examples
+    /// ```
+    /// use simple_metrics::LabelsBuilder;
+    ///
+    /// let base = LabelsBuilder::new().with("a", "b").build().unwrap();
+    /// let chained = base.builder().with("c", "d").build().unwrap();
+    ///
+    /// let final_keys: Vec<_> = chained.keys().collect();
+    /// assert_eq!(vec!["a", "c"], final_keys);
+    /// ```
     pub fn builder(&self) -> LabelsBuilder {
         LabelsBuilder::from_labels(self)
     }
 
+    /// This method is internal-only.
+    ///
+    /// Use `LabelsBuilder::build` to create a `Labels` object.
     pub(crate) fn from_builder(builder: &LabelsBuilder) -> Self {
         let mut labels = Labels::new();
 

@@ -2,6 +2,31 @@ use std::collections::BTreeMap;
 
 use crate::{labels::is_valid_label_name, Error, Labels};
 
+/// Builder for [Labels] struct.
+///
+/// Label names should match the regex `[a-zA-Z_][a-zA-Z0-9_]*`, that's
+/// why `.build()` returns a `Result`, and it's up to the user how to
+/// handle it.
+///
+/// # Prometheus v3 compatibility note
+///
+/// Prometheus v3 allows metric names and label names to use any UTF-8
+/// characters. **This feature is not currently supported in this
+/// library.** For more details, refer to the official Prometheus
+/// docs: <https://prometheus.io/docs/concepts/data_model/>
+///
+///
+/// # Examples
+/// ```
+/// use simple_metrics::LabelsBuilder;
+///
+/// let builder_result = LabelsBuilder::new()
+///     .with("hello", "world")
+///     .with("simple", "metrics")
+///     .build();
+/// let _ = builder_result.expect("label names are invalid");
+///
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelsBuilder {
     pub(crate) inner: BTreeMap<String, String>,
