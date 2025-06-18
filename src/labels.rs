@@ -1,11 +1,24 @@
 use std::collections::{btree_map, BTreeMap};
 
-use crate::Error;
+use crate::labels_builder::LabelsBuilder;
 
-/// Internal representation of sample labels
+/// Opaque representation of sample labels
+///
+/// Use [LabelsBuilder] object to create a new set of labels.
+///
+/// # Examples
+/// ```
+/// use simple_metrics::LabelsBuilder;
+///
+/// let builder = LabelsBuilder::new().with("hello", "world");
+/// let res = builder.build();
+/// let labels = res.unwrap();
+/// assert_eq!(labels.len(), 1);
+///
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Labels {
-    inner: BTreeMap<String, String>,
+    pub(crate) inner: BTreeMap<String, String>,
 }
 
 impl Labels {
@@ -15,21 +28,33 @@ impl Labels {
         }
     }
 
-    pub fn with<K, V>(mut self, key: K, value: V) -> Self
-    where
-        K: Into<String>,
-        V: Into<String>,
-    {
-        self.insert(key, value);
-        self
+    /// Creates a new builder from the existing set of labels.
+    ///
+    /// # Examples
+    /// ```
+    /// use simple_metrics::LabelsBuilder;
+    ///
+    /// let base = LabelsBuilder::new().with("a", "b").build().unwrap();
+    /// let chained = base.builder().with("c", "d").build().unwrap();
+    ///
+    /// let final_keys: Vec<_> = chained.keys().collect();
+    /// assert_eq!(vec!["a", "c"], final_keys);
+    /// ```
+    pub fn builder(&self) -> LabelsBuilder {
+        LabelsBuilder::from_labels(self)
     }
 
-    pub fn insert<K, V>(&mut self, key: K, value: V)
-    where
-        K: Into<String>,
-        V: Into<String>,
-    {
-        self.inner.insert(key.into(), value.into());
+    /// This method is internal-only.
+    ///
+    /// Use `LabelsBuilder::build` to create a `Labels` object.
+    pub(crate) fn from_builder(builder: &LabelsBuilder) -> Self {
+        let mut labels = Labels::new();
+
+        for (name, value) in builder.inner.iter() {
+            labels.inner.insert(name.into(), value.into());
+        }
+
+        labels
     }
 
     pub fn iter(&self) -> btree_map::Iter<String, String> {
@@ -77,41 +102,6 @@ impl Extend<(String, String)> for Labels {
     }
 }
 
-impl<T, U> FromIterator<(T, U)> for Labels
-where
-    T: Into<String>,
-    U: Into<String>,
-{
-    fn from_iter<I: IntoIterator<Item = (T, U)>>(iter: I) -> Self {
-        let mut map = BTreeMap::new();
-        for (key, value) in iter {
-            map.insert(key.into(), value.into());
-        }
-        Labels { inner: map }
-    }
-}
-
-impl<'a, T, U> From<&'a [(T, U)]> for Labels
-where
-    T: Into<String> + AsRef<str> + 'a,
-    U: Into<String> + AsRef<str> + 'a,
-{
-    fn from(tuples: &'a [(T, U)]) -> Self {
-        tuples
-            .iter()
-            .map(|(k, v)| (k.as_ref(), v.as_ref()))
-            .collect()
-    }
-}
-
-impl<K: Ord + Clone + Into<String>, V: Clone + Into<String>, const N: usize> From<[(K, V); N]>
-    for Labels
-{
-    fn from(value: [(K, V); N]) -> Self {
-        value.iter().cloned().collect()
-    }
-}
-
 // Somehow the manual ascii check shows higher performance than using
 // the set of `is_ascii_*()` methods.
 //
@@ -137,65 +127,27 @@ pub fn is_valid_label_name(name: &str) -> bool {
     }
 }
 
-pub fn check_labels(labels: &Labels) -> Result<(), Error> {
-    for name in labels.keys() {
-        if !is_valid_label_name(name) {
-            return Err(Error::InvalidLabelName(name.to_string()));
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::Labels;
+    use crate::{labels_builder::LabelsBuilder, Labels};
 
     #[test]
     fn labels_new() {
         let mut labels_insert = Labels::new();
-        labels_insert.insert("hello", "world");
-        labels_insert.insert("woot", "meh");
+        labels_insert.inner.insert("hello".into(), "world".into());
+        labels_insert.inner.insert("woot".into(), "meh".into());
         assert_eq!(2, labels_insert.len());
 
-        let labels_with = Labels::new().with("hello", "world").with("woot", "meh");
+        let labels_with = LabelsBuilder::new()
+            .with("hello", "world")
+            .with("woot", "meh")
+            .build()
+            .expect("can't build labels");
         assert_eq!(2, labels_with.len());
 
         assert_eq!(labels_insert, labels_with);
 
         let labels_default = Labels::default();
         assert_eq!(0, labels_default.len());
-    }
-
-    #[test]
-    fn labels_with() {
-        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
-        let labels: Labels = tuples.into_iter().collect();
-        assert_eq!(3, labels.len());
-
-        let new_labels = labels.clone().with("four", "4");
-
-        let tuples2 = [("one", "1"), ("two", "2"), ("three", "3"), ("four", "4")];
-        let labels2: Labels = tuples2.into_iter().collect();
-
-        assert_eq!(new_labels, labels2);
-    }
-
-    #[test]
-    fn labels_from_tuple_list() {
-        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
-        let labels: Labels = tuples.into_iter().collect();
-        assert_eq!(3, labels.len());
-
-        let labels_from = Labels::from(&tuples[..]);
-        assert_eq!(3, labels_from.len());
-
-        assert_eq!(labels, labels_from);
-
-        let labels_from_2 = Labels::from(&[("one", "1"), ("two", "2"), ("three", "3")][..]);
-        assert_eq!(labels, labels_from_2);
-
-        let labels_from_3 = Labels::from([("one", "1"), ("two", "2"), ("three", "3")]);
-        assert_eq!(labels, labels_from_3);
     }
 }
