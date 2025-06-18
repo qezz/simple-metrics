@@ -88,24 +88,26 @@ let states = vec![
     },
 ];
 
-let mut static_labels = BTreeMap::new();
-static_labels.insert("process".into(), "simple-metrics".into());
+let mut static_labels = LabelsBuilder::new()
+    .with("process", "simple-metrics")
+    .build()
+    .expect("invalid label names");
 
 let mut store: MetricStore<ServiceMetric> =
     MetricStore::new().with_static_labels(static_labels);
 
 for s in states {
-    let mut common = Labels::new();
-    common.insert("name".to_string(), s.name);
+    let mut common = LabelsBuilder::new()
+        .with("name", s.name)
+        .build()
+        .expect("invalid label names");
 
     store.add_sample(
         ServiceMetric::WorkerHealth,
-        Sample::new(&common, s.health).expect("valid"),
+        Sample::new(&common, s.health)
     );
 
-    store
-        .add_value(ServiceMetric::ServiceHeight, &common, s.height)
-        .expect("valid");
+    store.add_value(ServiceMetric::ServiceHeight, &common, s.height);
 }
 
 let actual = store.render_into_metrics(Some("namespace"));
