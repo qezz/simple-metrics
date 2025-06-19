@@ -482,6 +482,59 @@ service_height{common_a="some_value",common_b="other_value",name="b",process="si
     }
 
     #[test]
+    fn simple_with_label_group() {
+        let states = vec![
+            SimpleState {
+                name: "a".into(),
+                health: true,
+                height: 100,
+            },
+            SimpleState {
+                name: "b".into(),
+                health: false,
+                height: 200,
+            },
+        ];
+
+        let static_labels = LabelsBuilder::new()
+            .with("process", "simple-metrics")
+            .build()
+            .unwrap();
+
+        let mut store: MetricStore<ServiceMetric> =
+            MetricStore::new().with_static_labels(static_labels);
+
+        let common_builder =
+            LabelsBuilder::from([("common_a", "some_value"), ("common_b", "other_value")]);
+
+        for s in states {
+            let state_labels = common_builder.clone().with("name", s.name).build().unwrap();
+
+            store.add_with_common_labels(
+                &state_labels,
+                &[
+                    (ServiceMetric::WorkerHealth, s.health.into()),
+                    (ServiceMetric::ServiceHeight, s.height.into()),
+                ],
+            );
+        }
+
+        let actual = store.render_into_metrics(None);
+
+        let expected = r#"# HELP worker_health worker health
+# TYPE worker_health gauge
+worker_health{common_a="some_value",common_b="other_value",name="a",process="simple-metrics"} 1
+worker_health{common_a="some_value",common_b="other_value",name="b",process="simple-metrics"} 0
+
+# HELP service_height service height
+# TYPE service_height gauge
+service_height{common_a="some_value",common_b="other_value",name="a",process="simple-metrics"} 100
+service_height{common_a="some_value",common_b="other_value",name="b",process="simple-metrics"} 200
+"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn simple_with_namespace() {
         let states = vec![
             SimpleState {

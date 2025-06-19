@@ -56,6 +56,53 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
         }
     }
 
+    /// Add values for multiple metrics with the same set of labels.
+    ///
+    /// The usage is a bit different from the usual `.add_value()`
+    /// method. Since there are no heterogeneous collections in Rust,
+    /// the type of the metric value should be the same for all
+    /// metrics. A workaround is to call `.into()` on each value.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use simple_metrics::{LabelsBuilder, MetricDef, MetricStore, MetricType, ToMetricDef};
+    ///
+    /// #[derive(Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
+    /// pub enum Metric {
+    ///     A,
+    ///     B,
+    ///     C,
+    /// }
+    ///
+    /// impl ToMetricDef for Metric {
+    ///     fn to_metric_def(&self) -> MetricDef {
+    ///         match self {
+    ///             Metric::A => MetricDef::new("stub_a", "a", MetricType::Gauge).unwrap(),
+    ///             Metric::B => MetricDef::new("stub_b", "b", MetricType::Gauge).unwrap(),
+    ///             Metric::C => MetricDef::new("stub_c", "c", MetricType::Gauge).unwrap(),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut store: MetricStore<Metric> = MetricStore::new();
+    /// let common = LabelsBuilder::new().with("hello", "world").build().unwrap();
+    ///
+    /// store.add_with_common_labels(
+    ///     &common,
+    ///     &[
+    ///         (Metric::A, true.into()),
+    ///         (Metric::B, 1000.into()),
+    ///         (Metric::C, (-123.456).into()),
+    ///     ],
+    /// );
+    ///
+    /// ```
+    pub fn add_with_common_labels(&mut self, labels: &Labels, metrics: &[(K, MetricValue)]) {
+        for (to_metric, value) in metrics {
+            self.add_value(to_metric.clone(), labels, value.clone())
+        }
+    }
+
     /// Include static labels to all samples, and return the inner
     /// representation.
     ///
