@@ -330,7 +330,11 @@ mod tests {
             store.add_value(ServiceMetric::ServiceDelta, &lbs_n, -s.delta);
         }
 
-        let actual = store.render_into_metrics(Some(&namespace));
+        let actual1 = store.render_into_metrics(Some(&namespace));
+        let actual2 = store
+            .to_rich_samples()
+            .render_into_metrics(Some(&namespace));
+
         let expected = r#"# HELP test_exporter_worker_health worker health
 # TYPE test_exporter_worker_health gauge
 test_exporter_worker_health{name="a",process="simple-metrics"} 1
@@ -368,7 +372,8 @@ test_exporter_service_maybe2{client="woot",name="a",process="simple-metrics"} 10
 test_exporter_service_maybe2{client="woot",name="b",process="simple-metrics"} 100
 test_exporter_service_maybe2{client="meh",name="c",process="simple-metrics"} 100
 "#;
-        assert_eq!(actual, expected);
+        assert_eq!(actual1, expected);
+        assert_eq!(actual2, expected);
     }
 
     pub struct SimpleState {
