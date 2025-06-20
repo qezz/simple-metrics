@@ -221,14 +221,30 @@ impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
             // TODO make sure no same labels exist?
             // TODO make sure there are no control characters in the labels values
 
-            let rendered = format!(
-                "# HELP {} {}\n# TYPE {} {}\n{}\n",
-                metric_def.name,
-                metric_def.help,
-                metric_def.name,
-                metric_def.metric_type,
-                metrics.join("\n")
-            );
+            let rendered = match namespace {
+                Some(ref ns) => {
+                    format!(
+                        "# HELP {}_{} {}\n# TYPE {}_{} {}\n{}\n",
+                        ns,
+                        metric_def.name,
+                        metric_def.help,
+                        ns,
+                        metric_def.name,
+                        metric_def.metric_type,
+                        metrics.join("\n")
+                    )
+                }
+                None => {
+                    format!(
+                        "# HELP {} {}\n# TYPE {} {}\n{}\n",
+                        metric_def.name,
+                        metric_def.help,
+                        metric_def.name,
+                        metric_def.metric_type,
+                        metrics.join("\n")
+                    )
+                }
+            };
 
             all_metrics.push(rendered);
         }
