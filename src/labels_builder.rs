@@ -17,6 +17,22 @@ use crate::{labels::is_valid_label_name, Error, Labels};
 ///
 ///
 /// # Examples
+///
+/// There are several options to initialize the builder. If a brand
+/// new builder is needed, and the values are already known, it's
+/// possible to derive it from a (fixed size) array:
+///
+/// ```
+/// use simple_metrics::LabelsBuilder;
+///
+/// let builder_result = LabelsBuilder::from([("hello", "world"), ("simple", "metrics")])
+///     .build();
+/// let _ = builder_result.expect("label names are invalid");
+/// ```
+///
+/// If a builder already exists, and one needs to extend it with
+/// labels, one of the following approaches should work:
+///
 /// ```
 /// use simple_metrics::LabelsBuilder;
 ///
@@ -25,7 +41,22 @@ use crate::{labels::is_valid_label_name, Error, Labels};
 ///     .with("simple", "metrics")
 ///     .build();
 /// let _ = builder_result.expect("label names are invalid");
+/// ```
+/// ```
+/// use simple_metrics::LabelsBuilder;
 ///
+/// let builder_result = LabelsBuilder::new()
+///     .with_many(&[("hello", "world"), ("simple", "metrics")])
+///     .build();
+/// let _ = builder_result.expect("label names are invalid");
+/// ```
+/// ```
+/// use simple_metrics::LabelsBuilder;
+///
+/// let builder_result = LabelsBuilder::new()
+///     .with_many_owned(vec![("hello", "world"), ("simple", "metrics")])
+///     .build();
+/// let _ = builder_result.expect("label names are invalid");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelsBuilder {
@@ -51,6 +82,30 @@ impl LabelsBuilder {
         V: Into<String>,
     {
         self.inner.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn with_many<K, V>(mut self, labels: &[(K, V)]) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        for (key, value) in labels.iter() {
+            self.insert(key.as_ref().to_string(), value.as_ref().to_string());
+        }
+
+        self
+    }
+
+    pub fn with_many_owned<K, V>(mut self, labels: Vec<(K, V)>) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        for (key, value) in labels.into_iter() {
+            self.insert(key.into(), value.into());
+        }
+
         self
     }
 
@@ -159,6 +214,40 @@ mod tests {
         let labels2 = builder2.build().unwrap();
 
         assert_eq!(new_labels, labels2);
+    }
+
+    #[test]
+    fn labels_with_many() {
+        let expected_labels: Labels = LabelsBuilder::from([
+            ("one", "1"),
+            ("two", "2"),
+            ("three", "3"),
+            ("four", "4"),
+            ("five", "5"),
+        ])
+        .build()
+        .unwrap();
+
+        let lb1 = LabelsBuilder::new();
+        let lb1 = lb1.with_many(&[("one", "1"), ("two", "2")]);
+        let lb1 = lb1.with_many(&[("three", "3"), ("four", "4"), ("five", "5")]);
+
+        let labels1 = lb1.build().unwrap();
+
+        assert_eq!(labels1, expected_labels);
+
+        let labels2 = LabelsBuilder::new()
+            .with_many_owned(vec![
+                ("one", "1"),
+                ("two", "2"),
+                ("three", "3"),
+                ("four", "4"),
+                ("five", "5"),
+            ])
+            .build()
+            .unwrap();
+
+        assert_eq!(labels2, expected_labels);
     }
 
     #[test]
