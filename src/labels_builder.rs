@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use crate::{labels::is_valid_label_name, Error, Labels};
 
@@ -29,43 +30,77 @@ use crate::{labels::is_valid_label_name, Error, Labels};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelsBuilder {
-    pub(crate) inner: BTreeMap<String, String>,
+    pub(crate) inner: Vec<Rc<BTreeMap<String, String>>>,
 }
 
 impl LabelsBuilder {
     pub fn new() -> Self {
-        Self {
-            inner: BTreeMap::new(),
-        }
+        Self { inner: Vec::new() }
     }
 
     pub fn from_labels(labels: &Labels) -> Self {
         Self {
-            inner: labels.inner.clone(),
+            inner: vec![Rc::new(labels.inner.clone())],
         }
     }
 
-    pub fn with<K, V>(mut self, key: K, value: V) -> Self
+    pub fn with<K, V>(&self, key: K, value: V) -> Self
     where
         K: Into<String>,
         V: Into<String>,
     {
-        self.inner.insert(key.into(), value.into());
-        self
+        let mut labels: BTreeMap<String, String> = BTreeMap::new();
+        labels.insert(key.into(), value.into());
+
+        let mut builder = self.clone();
+        builder.inner.push(Rc::new(labels));
+        builder
     }
 
-    pub fn insert<K, V>(&mut self, key: K, value: V)
+    pub fn with_many<K, V>(&self, items: impl IntoIterator<Item = (K, V)>) -> Self
     where
         K: Into<String>,
         V: Into<String>,
     {
-        self.inner.insert(key.into(), value.into());
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
+        for (key, value) in items {
+            map.insert(key.into(), value.into());
+        }
+
+        let mut builder = self.clone();
+        builder.inner.push(Rc::new(map));
+        builder
     }
+
+    pub fn with_many_by_ref<K, V>(&self, items: &[(K, V)]) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
+        for (key, value) in items {
+            map.insert(key.as_ref().to_string(), value.as_ref().to_string());
+        }
+
+        let mut builder = self.clone();
+        builder.inner.push(Rc::new(map));
+        builder
+    }
+
+    // pub fn insert<K, V>(&mut self, key: K, value: V)
+    // where
+    //     K: Into<String>,
+    //     V: Into<String>,
+    // {
+    //     self.inner.insert(key.into(), value.into());
+    // }
 
     pub fn check_labels(&self) -> Result<(), Error> {
-        for (name, _) in self.inner.iter() {
-            if !is_valid_label_name(name) {
-                return Err(Error::InvalidLabelName(name.to_string()));
+        for layer in self.inner.iter() {
+            for (name, _) in (*layer).iter() {
+                if !is_valid_label_name(name) {
+                    return Err(Error::InvalidLabelName(name.to_string()));
+                }
             }
         }
 
@@ -95,7 +130,9 @@ where
         for (key, value) in iter {
             map.insert(key.into(), value.into());
         }
-        Self { inner: map }
+        Self {
+            inner: vec![Rc::new(map)],
+        }
     }
 }
 
@@ -131,9 +168,9 @@ mod tests {
         let builder = LabelsBuilder::new().with("hello", "world");
         let labels = builder.build().unwrap();
 
-        let mut builder2 = LabelsBuilder::new();
-        builder2.insert("hello", "world");
-        let labels2 = builder2.build().unwrap();
+        // let mut builder2 = LabelsBuilder::new();
+        // builder2.insert("hello", "world");
+        // let labels2 = builder2.build().unwrap();
 
         let expected = {
             let mut tmp = Labels::new();
@@ -142,7 +179,7 @@ mod tests {
         };
 
         assert_eq!(labels, expected);
-        assert_eq!(labels2, expected);
+        // assert_eq!(labels2, expected);
     }
 
     #[test]
@@ -159,6 +196,70 @@ mod tests {
         let labels2 = builder2.build().unwrap();
 
         assert_eq!(new_labels, labels2);
+    }
+
+    #[test]
+    fn labels_with_many_owned() {
+        let world = String::from("world");
+        let builder = LabelsBuilder::new().with_many([("hello", &world)]);
+
+        let many = vec![("test_key", "test_value")];
+        let labels = builder.with_many(many).build().unwrap();
+
+        let expected = LabelsBuilder::from([("hello", "world"), ("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        assert_eq!(expected, labels);
+    }
+
+    #[test]
+    fn labels_with_many_by_ref() {
+        let world = "world";
+        let builder = LabelsBuilder::new().with_many([("hello", world)]);
+
+        let expected = LabelsBuilder::from([("hello", "world"), ("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        let many = vec![("test_key", "test_value")];
+        let labels1 = builder.with_many_by_ref(&many).build().unwrap();
+        assert_eq!(expected, labels1);
+
+        let expected2 = LabelsBuilder::from([("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        let labels2 = LabelsBuilder::new()
+            .with_many_by_ref(&many)
+            .build()
+            .unwrap();
+
+        assert_eq!(expected2, labels2);
+    }
+
+    #[test]
+    fn branched_builder() {
+        let tuples = [("one", "1"), ("two", "2"), ("three", "3")];
+        let builder: LabelsBuilder = tuples.into_iter().collect();
+
+        let branch1 = builder.with("four", "4").build().unwrap();
+        let expected1 = [("one", "1"), ("two", "2"), ("three", "3"), ("four", "4")]
+            .into_iter()
+            .collect::<LabelsBuilder>()
+            .build()
+            .unwrap();
+
+        assert_eq!(branch1, expected1);
+
+        let branch2 = builder.with("five", "5").build().unwrap();
+        let expected2 = [("one", "1"), ("two", "2"), ("three", "3"), ("five", "5")]
+            .into_iter()
+            .collect::<LabelsBuilder>()
+            .build()
+            .unwrap();
+
+        assert_eq!(branch2, expected2);
     }
 
     #[test]
