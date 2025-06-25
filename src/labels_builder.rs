@@ -149,6 +149,21 @@ impl LabelsBuilder {
         builder
     }
 
+    pub fn with_many2<K, V>(&self, items: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        let mut map: BTreeMap<String, String> = BTreeMap::new();
+        for (key, value) in items {
+            map.insert(key.as_ref().to_string(), value.as_ref().to_string());
+        }
+
+        let mut builder = self.clone();
+        builder.inner.push(Rc::new(map));
+        builder
+    }
+
     pub fn with_many_by_ref<K, V>(&self, items: &[(K, V)]) -> Self
     where
         K: AsRef<str>,
@@ -307,6 +322,46 @@ mod tests {
         //     .unwrap();
         //
         // assert_eq!(labels2, expected_labels);
+    }
+
+    #[test]
+    fn labels_with_many2() {
+        let world = String::from("world");
+        let builder = LabelsBuilder::new().with_many2([("hello", &world)]);
+
+        let many = vec![("test_key", "test_value")];
+        let labels = builder.with_many2(many).build().unwrap();
+
+        let expected = LabelsBuilder::from([("hello", "world"), ("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        assert_eq!(expected, labels);
+    }
+
+    #[test]
+    fn labels_with_many_by_ref() {
+        let world = "world";
+        let builder = LabelsBuilder::new().with_many([("hello", world)]);
+
+        let expected = LabelsBuilder::from([("hello", "world"), ("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        let many = vec![("test_key", "test_value")];
+        let labels1 = builder.with_many_by_ref(&many).build().unwrap();
+        assert_eq!(expected, labels1);
+
+        let expected2 = LabelsBuilder::from([("test_key", "test_value")])
+            .build()
+            .unwrap();
+
+        let labels2 = LabelsBuilder::new()
+            .with_many_by_ref(&many)
+            .build()
+            .unwrap();
+
+        assert_eq!(expected2, labels2);
     }
 
     #[test]
