@@ -126,7 +126,8 @@ impl LabelsBuilder {
         labels.insert(key.as_ref().to_string(), value.as_ref().to_string());
 
         let mut builder = self.clone();
-        builder.inner.push(Rc::new(labels));
+        // builder.inner.push(Rc::new(labels));
+        builder.add(labels);
         builder
     }
 
@@ -140,8 +141,10 @@ impl LabelsBuilder {
             map.insert(key.into(), value.into());
         }
 
+        // let m: BTreeMap<String, String> = items.into_iter().collect();
+
         let mut builder = self.clone();
-        builder.inner.push(Rc::new(map));
+        builder.add(map);
         builder
     }
 
@@ -172,8 +175,10 @@ impl LabelsBuilder {
             map.insert(key.as_ref().to_string(), value.as_ref().to_string());
         }
 
+        // let m: BTreeMap<String, String> = items.into_iter().collect();
+
         let mut builder = self.clone();
-        builder.inner.push(Rc::new(map));
+        builder.add(map);
         builder
     }
 
@@ -188,7 +193,7 @@ impl LabelsBuilder {
         }
 
         let mut builder = self.clone();
-        builder.inner.push(Rc::new(map));
+        builder.add(map);
         builder
     }
 
@@ -301,6 +306,13 @@ mod tests {
         let labels2 = builder2.build().unwrap();
 
         assert_eq!(new_labels, labels2);
+
+        let labels3 = LabelsBuilder::new()
+            .with(String::from("hello"), String::from("world"))
+            .build()
+            .unwrap();
+
+        assert_eq!(new_labels, labels3);
     }
 
     #[test]
