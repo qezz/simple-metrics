@@ -12,3 +12,8 @@ license = "MIT OR Apache-2.0"
 keywords = ["metrics", "telemetry", "prometheus"]
 
 [dependencies]
+
+[[example]]
+name = "simple"
+test = true
+harness = false
