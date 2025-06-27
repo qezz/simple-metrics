@@ -210,6 +210,10 @@ impl MetricDef {
             metric_type,
         })
     }
+
+    pub fn gauge(name: &str, help: &str) -> Result<Self, Error> {
+        Self::new(name, help, MetricType::Gauge)
+    }
 }
 
 // TODO: Replace with From<X> for MetricDef?
@@ -251,13 +255,11 @@ mod tests {
                     MetricDef::new("service_height", "service height", MetricType::Gauge).unwrap()
                 }
                 ServiceMetric::ServiceDelta => {
-                    MetricDef::new("service_delta", "service delta", MetricType::Gauge).unwrap()
+                    MetricDef::gauge("service_delta", "service delta").unwrap()
                 }
-                ServiceMetric::Maybe => {
-                    MetricDef::new("service_maybe", "service maybe", MetricType::Gauge).unwrap()
-                }
+                ServiceMetric::Maybe => MetricDef::gauge("service_maybe", "service maybe").unwrap(),
                 ServiceMetric::Maybe2 => {
-                    MetricDef::new("service_maybe2", "service maybe2", MetricType::Gauge).unwrap()
+                    MetricDef::gauge("service_maybe2", "service maybe2").unwrap()
                 }
             }
         }
