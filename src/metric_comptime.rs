@@ -53,6 +53,22 @@ macro_rules! metric_def {
     }};
 }
 
+#[macro_export]
+macro_rules! metric_def_gauge {
+    ($name:literal, $help:literal) => {{
+        const _: () = {
+            if !$crate::metric_comptime::validate_metric_name($name) {
+                panic!(concat!(
+                    "Invalid metric name: ",
+                    $name,
+                    ". Should match: [a-zA-Z_:][a-zA-Z0-9_:]*"
+                ));
+            }
+        };
+        $crate::MetricDef::new_static($name, $help.to_string(), $crate::MetricType::Gauge)
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Labels, MetricDef, MetricStore, MetricType, ToMetricDef};
@@ -60,6 +76,7 @@ mod tests {
     #[derive(Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
     pub enum Metric {
         Health,
+        Gauge,
     }
 
     impl ToMetricDef for Metric {
@@ -67,6 +84,9 @@ mod tests {
             match self {
                 Metric::Health => {
                     metric_def!("worker_health", "worker health", MetricType::Gauge)
+                }
+                Metric::Gauge => {
+                    metric_def_gauge!("worker_health", "worker health")
                 }
             }
         }
@@ -76,5 +96,6 @@ mod tests {
     fn smoke() {
         let mut store = MetricStore::new();
         store.add_value(Metric::Health, &Labels::new(), true);
+        store.add_value(Metric::Gauge, &Labels::new(), true);
     }
 }
