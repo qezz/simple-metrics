@@ -49,7 +49,7 @@ macro_rules! metric_def {
                 ));
             }
         };
-        MetricDef::new_static($name, $help.to_string(), $metric_type)
+        $crate::MetricDef::new_static($name, $help.to_string(), $metric_type)
     }};
 }
 
