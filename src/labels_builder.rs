@@ -93,30 +93,6 @@ impl LabelsBuilder {
         builder
     }
 
-    // pub fn with_many<K, V>(mut self, labels: &[(K, V)]) -> Self
-    // where
-    //     K: AsRef<str>,
-    //     V: AsRef<str>,
-    // {
-    //     for (key, value) in labels.iter() {
-    //         self.inner.insert(key.as_ref().to_string(), value.as_ref().to_string());
-    //     }
-
-    //     self
-    // }
-
-    // pub fn with_many_owned<K, V>(mut self, labels: Vec<(K, V)>) -> Self
-    // where
-    //     K: Into<String>,
-    //     V: Into<String>,
-    // {
-    //     for (key, value) in labels.into_iter() {
-    //         self.insert(key.into(), value.into());
-    //     }
-
-    //     self
-    // }
-
     pub fn with2<K, V>(&self, key: K, value: V) -> Self
     where
         K: AsRef<str>,
@@ -126,7 +102,6 @@ impl LabelsBuilder {
         labels.insert(key.as_ref().to_string(), value.as_ref().to_string());
 
         let mut builder = self.clone();
-        // builder.inner.push(Rc::new(labels));
         builder.add(labels);
         builder
     }
@@ -140,25 +115,6 @@ impl LabelsBuilder {
         for (key, value) in items {
             map.insert(key.into(), value.into());
         }
-
-        // let m: BTreeMap<String, String> = items.into_iter().collect();
-
-        let mut builder = self.clone();
-        builder.add(map);
-        builder
-    }
-
-    pub fn with_many3<K, V>(&self, items: impl IntoIterator<Item = (K, V)>) -> Self
-    where
-        K: Into<String>,
-        V: Into<String>,
-    {
-        let mut map: BTreeMap<String, String> = BTreeMap::new();
-        for (key, value) in items {
-            map.insert(key.into(), value.into());
-        }
-
-        // let m: BTreeMap<String, String> = items.into_iter().collect();
 
         let mut builder = self.clone();
         builder.add(map);
@@ -174,8 +130,6 @@ impl LabelsBuilder {
         for (key, value) in items {
             map.insert(key.as_ref().to_string(), value.as_ref().to_string());
         }
-
-        // let m: BTreeMap<String, String> = items.into_iter().collect();
 
         let mut builder = self.clone();
         builder.add(map);
@@ -196,14 +150,6 @@ impl LabelsBuilder {
         builder.add(map);
         builder
     }
-
-    // pub fn insert<K, V>(&mut self, key: K, value: V)
-    // where
-    //     K: Into<String>,
-    //     V: Into<String>,
-    // {
-    //     self.inner.insert(key.into(), value.into());
-    // }
 
     pub fn check_labels(&self) -> Result<(), Error> {
         for layer in self.inner.iter() {
