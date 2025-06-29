@@ -34,7 +34,8 @@ single format.
 
 Because there's no global registry, and because the metrics are
 data-driven, it becomes relatively easy to test your application. See
-unit tests in the code, or a simple example below.
+unit tests in the code, [examples](examples), or keep reading for a
+simple demo.
 
 ## Usage
 
