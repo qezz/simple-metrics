@@ -1,6 +1,9 @@
 pub mod labels;
 pub mod labels_builder;
+pub mod metric_comptime;
 pub mod store;
+
+use std::fmt::Display;
 
 pub use labels::Labels;
 pub use labels_builder::LabelsBuilder;
@@ -185,6 +188,30 @@ pub fn is_valid_metric_name(name: &str) -> bool {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum MetricName {
+    Static(&'static str),
+    Dynamic(String),
+}
+
+impl Display for MetricName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MetricName::Static(s) => write!(f, "{}", s),
+            MetricName::Dynamic(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl AsRef<str> for MetricName {
+    fn as_ref(&self) -> &str {
+        match self {
+            MetricName::Static(s) => s,
+            MetricName::Dynamic(s) => s,
+        }
+    }
+}
+
 /// MetricDef represents a metric definition.
 ///
 /// A metric definition consists of a name, a help string, and a
@@ -192,7 +219,7 @@ pub fn is_valid_metric_name(name: &str) -> bool {
 /// phase.
 #[derive(Clone, Debug)]
 pub struct MetricDef {
-    name: String,
+    name: MetricName,
     help: String,
     metric_type: MetricType,
 }
@@ -205,10 +232,14 @@ impl MetricDef {
         }
 
         Ok(Self {
-            name: name.to_string(),
+            name: MetricName::Dynamic(name.to_string()),
             help: help.to_string(),
             metric_type,
         })
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
     }
 
     pub fn gauge(name: &str, help: &str) -> Result<Self, Error> {
