@@ -56,16 +56,7 @@ macro_rules! metric_def {
 #[macro_export]
 macro_rules! metric_def_gauge {
     ($name:literal, $help:literal) => {{
-        const _: () = {
-            if !$crate::metric_comptime::validate_metric_name($name) {
-                panic!(concat!(
-                    "Invalid metric name: ",
-                    $name,
-                    ". Should match: [a-zA-Z_:][a-zA-Z0-9_:]*"
-                ));
-            }
-        };
-        $crate::MetricDef::new_static($name, $help.to_string(), $crate::MetricType::Gauge)
+        metric_def!($name, $help, $crate::MetricType::Gauge)
     }};
 }
 
