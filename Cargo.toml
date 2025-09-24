@@ -13,7 +13,16 @@ keywords = ["metrics", "telemetry", "prometheus"]
 
 [dependencies]
 
+[dev-dependencies]
+criterion = "0.7"
+
+[[bench]]
+name = "render_into_metrics"
+harness = false
+
 [[example]]
 name = "simple"
 test = true
 harness = false
+
+
