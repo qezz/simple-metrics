@@ -41,7 +41,10 @@ impl ToMetricDef for TestMetricKey<'_> {
     }
 }
 
-fn create_test_store<'a>(num_metrics: usize, samples_per_metric: usize) -> MetricStore<TestMetricKey<'a>> {
+fn create_test_store<'a>(
+    num_metrics: usize,
+    samples_per_metric: usize,
+) -> MetricStore<TestMetricKey<'a>> {
     // Add some static labels
     // let mut static_labels = LabelsBuilder::new();
     // static_labels.insert("instance".to_string(), "server-01".to_string());
@@ -136,6 +139,8 @@ fn bench_render_metrics(c: &mut Criterion) {
 //     group.finish();
 // }
 
-criterion_group!(benches, bench_render_metrics, // bench_compare_implementations
+criterion_group!(
+    benches,
+    bench_render_metrics, // bench_compare_implementations
 );
 criterion_main!(benches);
