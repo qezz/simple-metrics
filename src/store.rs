@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, hash::Hash};
 
-use crate::{Labels, MetricValue, RenderIntoMetrics, Sample, ToMetricDef};
+use crate::{metric_def::ToMetricDef, Labels, MetricValue, RenderIntoMetrics, Sample};
 
 #[derive(Clone, Debug)]
 pub struct MetricStore<K: ToMetricDef> {

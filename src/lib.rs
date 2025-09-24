@@ -1,9 +1,11 @@
 pub mod labels;
 pub mod labels_builder;
+pub mod metric_def;
 pub mod store;
 
 pub use labels::Labels;
 pub use labels_builder::LabelsBuilder;
+pub use metric_def::{MetricDef, ToMetricDef};
 pub use store::MetricStore;
 
 /// Internal trait for rendering a collection of metrics into a
@@ -159,71 +161,11 @@ impl std::fmt::Display for MetricType {
     }
 }
 
-#[allow(clippy::manual_is_ascii_check)]
-#[inline(always)]
-pub fn is_valid_metric_name(name: &str) -> bool {
-    let bytes = name.as_bytes();
-
-    if let Some(&first) = bytes.first() {
-        if !((b'A'..=b'Z').contains(&first)
-            || (b'a'..=b'z').contains(&first)
-            || first == b'_'
-            || first == b':')
-        {
-            return false;
-        }
-
-        bytes.iter().skip(1).all(|&b| {
-            (b'A'..=b'Z').contains(&b)
-                || (b'a'..=b'z').contains(&b)
-                || (b'0'..=b'9').contains(&b)
-                || b == b'_'
-                || b == b':'
-        })
-    } else {
-        false
-    }
-}
-
-/// MetricDef represents a metric definition.
-///
-/// A metric definition consists of a name, a help string, and a
-/// metric type. The samples are dynaically added on the rendering
-/// phase.
-#[derive(Clone, Debug)]
-pub struct MetricDef {
-    name: String,
-    help: String,
-    metric_type: MetricType,
-}
-
-/// Metric definition, including its name, help string, and metric type
-impl MetricDef {
-    pub fn new(name: &str, help: &str, metric_type: MetricType) -> Result<Self, Error> {
-        if !is_valid_metric_name(name) {
-            return Err(Error::InvalidMetricName(name.to_string()));
-        }
-
-        Ok(Self {
-            name: name.to_string(),
-            help: help.to_string(),
-            metric_type,
-        })
-    }
-
-    pub fn gauge(name: &str, help: &str) -> Result<Self, Error> {
-        Self::new(name, help, MetricType::Gauge)
-    }
-}
-
-// TODO: Replace with From<X> for MetricDef?
-pub trait ToMetricDef: Clone {
-    fn to_metric_def(&self) -> MetricDef;
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{labels_builder::LabelsBuilder, store::MetricStore};
+
+    use self::metric_def::{MetricDef, ToMetricDef};
 
     use super::*;
 
