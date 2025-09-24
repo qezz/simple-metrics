@@ -1,4 +1,6 @@
-use simple_metrics::{metric_def, LabelsBuilder, MetricDef, MetricStore, MetricType, RenderIntoMetrics, ToMetricDef};
+use simple_metrics::{
+    metric_def, LabelsBuilder, MetricDef, MetricStore, MetricType, RenderIntoMetrics, ToMetricDef,
+};
 
 // Define your metrics as enum variants. The variants are later used
 // in `MetricStore` to reference existing metrics.
@@ -44,8 +46,10 @@ impl ToMetricDef for Metric {
         match self {
             Metric::ServiceHealth => {
                 MetricDef::gauge("service_health", "service health (1 or 0)").unwrap()
-            },
-            Metric::InternalData => metric_def!("internal_data", "some exported value", MetricType::Gauge)
+            }
+            Metric::InternalData => {
+                metric_def!("internal_data", "some exported value", MetricType::Gauge)
+            }
         }
     }
 }
