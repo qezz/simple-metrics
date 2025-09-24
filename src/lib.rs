@@ -1,5 +1,6 @@
 pub mod labels;
 pub mod labels_builder;
+pub mod macros;
 pub mod metric_def;
 pub mod store;
 
