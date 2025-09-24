@@ -50,8 +50,10 @@ impl Labels {
     pub(crate) fn from_builder(builder: &LabelsBuilder) -> Self {
         let mut labels = Labels::new();
 
-        for (name, value) in builder.inner.iter() {
-            labels.inner.insert(name.into(), value.into());
+        for layer in &builder.inner {
+            for (name, value) in (**layer).clone() {
+                labels.inner.insert(name, value);
+            }
         }
 
         labels
