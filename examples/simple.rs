@@ -1,4 +1,4 @@
-use simple_metrics::{LabelsBuilder, MetricDef, MetricStore, RenderIntoMetrics, ToMetricDef};
+use simple_metrics::{metric_def, LabelsBuilder, MetricDef, MetricStore, MetricType, RenderIntoMetrics, ToMetricDef};
 
 // Define your metrics as enum variants. The variants are later used
 // in `MetricStore` to reference existing metrics.
@@ -12,6 +12,7 @@ use simple_metrics::{LabelsBuilder, MetricDef, MetricStore, RenderIntoMetrics, T
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Metric {
     ServiceHealth,
+    InternalData,
 }
 
 // `ToMetricDef` should be implemented to comply with `MetricStore<T>`
@@ -21,10 +22,30 @@ pub enum Metric {
 // a bug if you forget to add a new variant to the `Metric` enum.
 impl ToMetricDef for Metric {
     fn to_metric_def(&self) -> simple_metrics::MetricDef {
+        // Create an exhaustive match on `self`.
+        //
+        // For each arm you have a couple of options:
+        //
+        // 1. Dynamic metric definition - provide any string to its
+        //    constructor. It returns a `Result` because not all characters
+        //    are allowed in the metric names.
+        //
+        // 2. Metric definition checked in compile-time - use macros
+        //    which will fail in compile time, but the metric name
+        //    should be a static str, and a valid one.
+        //
+        // There is a compile time penalty to using macros, but it's less
+        // than `.unwrap()`-ing each Result value.
+        //
+        // Consider using macros if you need a static set of metrics.
+        //
+        // Consider using dynamic if the list of metric names are not
+        // known at compile time (e.g. derived metrics or any type of user input)
         match self {
             Metric::ServiceHealth => {
                 MetricDef::gauge("service_health", "service health (1 or 0)").unwrap()
-            }
+            },
+            Metric::InternalData => metric_def!("internal_data", "some exported value", MetricType::Gauge)
         }
     }
 }
@@ -38,6 +59,7 @@ impl ToMetricDef for Metric {
 struct AppState {
     service_name: String,
     service_is_healthy: bool,
+    service_data: u64,
 }
 
 impl AppState {
@@ -50,6 +72,7 @@ impl AppState {
         Self {
             service_name: "service01".into(),
             service_is_healthy: false,
+            service_data: 0,
         }
     }
 
@@ -78,13 +101,16 @@ impl AppState {
         //
         // See `MetricValue` type for more details.
         store.add_value(Metric::ServiceHealth, &labels, self.service_is_healthy);
+        store.add_value(Metric::InternalData, &labels, self.service_data);
 
         store
     }
 }
 
 fn main() {
-    let state = AppState::new();
+    let mut state = AppState::new();
+
+    state.service_data += 100;
 
     // Due to internal structure of MetricStore, the order of rendered
     // metrics is always consistent.
