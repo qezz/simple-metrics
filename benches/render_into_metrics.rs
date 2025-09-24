@@ -71,11 +71,13 @@ fn create_test_store<'a>(
         let key = TestMetricKey::new(metric_idx);
 
         for sample_idx in 0..samples_per_metric {
-            let mut labels = LabelsBuilder::new()
+            let labels = LabelsBuilder::new()
                 .with("method", format!("GET_{}", sample_idx % 5))
-                .with("status".to_string(), format!("{}", 200 + (sample_idx % 5)));
+                .with("status".to_string(), format!("{}", 200 + (sample_idx % 5)))
+                .build()
+                .unwrap();
 
-            let sample = Sample::new(&labels.build().unwrap(), 42.0 + sample_idx as f64);
+            let sample = Sample::new(&labels, 42.0 + sample_idx as f64);
 
             store.add_sample(key.clone(), sample);
         }
@@ -103,7 +105,7 @@ fn bench_render_metrics(c: &mut Criterion) {
                 format!("{}x{}", num_metrics, samples_per_metric),
             ),
             &store,
-            |b, store| b.iter(|| black_box(store.render_into_metrics(Some("myapp")))),
+            |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics(Some("myapp")))),
         );
 
         group.bench_with_input(
@@ -112,7 +114,7 @@ fn bench_render_metrics(c: &mut Criterion) {
                 format!("{}x{}", num_metrics, samples_per_metric),
             ),
             &store,
-            |b, store| b.iter(|| black_box(store.render_into_metrics(None))),
+            |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics(None))),
         );
     }
 
