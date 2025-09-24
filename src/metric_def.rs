@@ -117,3 +117,25 @@ pub fn is_valid_metric_name(name: &str) -> bool {
         false
     }
 }
+
+/// Validates metric name at compile time
+pub const fn validate_metric_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    let len = bytes.len();
+
+    // First character must match with [a-zA-Z_:]
+    if !matches!(bytes[0], b'a'..=b'z' | b'A'..=b'Z' | b'_' | b':') {
+        return false;
+    }
+
+    // Rest must match with [a-zA-Z0-9_:]*
+    let mut i = 1;
+    while i < len {
+        if !matches!(bytes[i], b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b':') {
+            return false;
+        }
+        i += 1;
+    }
+
+    true
+}
