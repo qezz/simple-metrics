@@ -163,9 +163,8 @@ impl std::fmt::Display for MetricType {
 
 #[cfg(test)]
 mod tests {
+    use crate::metric_def::{MetricDef, ToMetricDef};
     use crate::{labels_builder::LabelsBuilder, store::MetricStore};
-
-    use self::metric_def::{MetricDef, ToMetricDef};
 
     use super::*;
 
