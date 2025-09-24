@@ -118,14 +118,14 @@ pub enum Error {
     /// the Prometheus data model
     ///
     /// For more details, see
-    /// https://prometheus.io/docs/concepts/data_model/
+    /// <https://prometheus.io/docs/concepts/data_model/>
     InvalidMetricName(String),
 
     /// InvalidLabelName means the label name doesn't comply with the
     /// Prometheus data model.
     ///
     /// For more details, see
-    /// https://prometheus.io/docs/concepts/data_model/
+    /// <https://prometheus.io/docs/concepts/data_model/>
     InvalidLabelName(String),
 }
 
