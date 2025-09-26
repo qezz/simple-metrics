@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! metric_def {
-    ($name:literal, $help:literal, $metric_type:expr) => {{
+    ($name:literal, $help:literal, $metric_type:expr $(,)?) => {{
         const _: () = {
             if !$crate::metric_def::validate_metric_name($name) {
                 panic!(concat!(
@@ -16,7 +16,7 @@ macro_rules! metric_def {
 
 #[macro_export]
 macro_rules! gauge {
-    ($name:literal, $help:literal) => {{
+    ($name:literal, $help:literal $(,)?) => {{
         $crate::metric_def!($name, $help, $crate::MetricType::Gauge)
     }};
 }
@@ -26,7 +26,9 @@ mod tests {
     #[derive(Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
     pub enum Metric {
         Health,
+        HealthTrailingComma,
         Gauge,
+        GaugeTrailingComma,
     }
 
     impl crate::ToMetricDef for Metric {
@@ -39,8 +41,21 @@ mod tests {
                         crate::MetricType::Gauge
                     )
                 }
+                Metric::HealthTrailingComma => {
+                    metric_def!(
+                        "worker_health_2:beep_BOOP",
+                        "worker health",
+                        crate::MetricType::Gauge, // keep this trailing comma for the test
+                    )
+                }
                 Metric::Gauge => {
                     gauge!("worker_health", "worker health")
+                }
+                Metric::GaugeTrailingComma => {
+                    gauge!(
+                        "worker_health_2",
+                        "worker health", // keep this trailing comma for the test
+                    )
                 }
             }
         }
@@ -50,6 +65,8 @@ mod tests {
     fn smoke() {
         let mut store = crate::MetricStore::new();
         store.add_value(Metric::Health, &crate::Labels::new(), true);
+        store.add_value(Metric::HealthTrailingComma, &crate::Labels::new(), true);
         store.add_value(Metric::Gauge, &crate::Labels::new(), true);
+        store.add_value(Metric::GaugeTrailingComma, &crate::Labels::new(), true);
     }
 }
