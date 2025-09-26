@@ -17,7 +17,7 @@ macro_rules! metric_def {
 #[macro_export]
 macro_rules! gauge {
     ($name:literal, $help:literal) => {{
-        metric_def!($name, $help, $crate::MetricType::Gauge)
+        $crate::metric_def!($name, $help, $crate::MetricType::Gauge)
     }};
 }
 
