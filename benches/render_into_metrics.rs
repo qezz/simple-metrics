@@ -105,44 +105,46 @@ fn bench_render_metrics(c: &mut Criterion) {
                 format!("{}x{}", num_metrics, samples_per_metric),
             ),
             &store,
-            |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics(Some("myapp")))),
+            |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics2(Some("myapp")))),
         );
 
-        group.bench_with_input(
-            BenchmarkId::new(
-                "without_namespace",
-                format!("{}x{}", num_metrics, samples_per_metric),
-            ),
-            &store,
-            |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics(None))),
-        );
+        // group.bench_with_input(
+        //     BenchmarkId::new(
+        //         "without_namespace",
+        //         format!("{}x{}", num_metrics, samples_per_metric),
+        //     ),
+        //     &store,
+        //     |b, store| b.iter(|| std::hint::black_box(store.render_into_metrics2(None))),
+        // );
     }
 
     group.finish();
 }
 
-// fn bench_compare_implementations(c: &mut Criterion) {
-//     let store = create_test_store(100, 10);
+fn bench_compare_implementations(c: &mut Criterion) {
+    let store = create_test_store(1000, 100);
 
-//     let mut group = c.benchmark_group("implementation_comparison");
+    let mut group = c.benchmark_group("implementation_comparison");
+    group.bench_function("render_into_metrics", |b| {
+        b.iter(|| std::hint::black_box(store.render_into_metrics(Some("myapp"))))
+    });
 
-//     group.bench_function("render_into_metrics", |b| {
-//         b.iter(|| black_box(store.render_into_metrics(Some("myapp"))))
-//     });
+    group.bench_function("render_into_metrics2", |b| {
+        b.iter(|| std::hint::black_box(store.render_into_metrics2(Some("myapp"))))
+    });
 
-//     // group.bench_function("optimized", |b| {
-//     //     b.iter(|| black_box(store.render_into_metrics(Some("myapp"))))
-//     // });
+    // group.bench_function("manual_assembly", |b| {
+    //     b.iter(|| black_box(store.render_into_metrics_manual(Some("myapp"))))
+    // });
 
-//     // group.bench_function("manual_assembly", |b| {
-//     //     b.iter(|| black_box(store.render_into_metrics_manual(Some("myapp"))))
-//     // });
+    group.finish();
+}
 
-//     group.finish();
-// }
+// criterion_group!(benches, bench_render_metrics, bench_compare_implementations);
 
-criterion_group!(
-    benches,
-    bench_render_metrics, // bench_compare_implementations
-);
+criterion_group! {
+  name = benches;
+  config = Criterion::default().measurement_time(std::time::Duration::from_secs(10));
+  targets = bench_render_metrics // , bench_compare_implementations,
+}
 criterion_main!(benches);

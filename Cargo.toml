@@ -11,6 +11,9 @@ license = "MIT OR Apache-2.0"
 
 keywords = ["metrics", "telemetry", "prometheus"]
 
+[lib]
+bench = false
+
 [dependencies]
 
 [dev-dependencies]

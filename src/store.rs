@@ -115,8 +115,11 @@ impl<K: ToMetricDef + Eq + PartialEq + Hash + Ord> MetricStore<K> {
             let mut new_samples = vec![];
 
             for s in samples {
-                let mut labels = s.labels.clone();
-                labels.extend(self.static_labels.clone());
+                // let mut labels = s.labels.clone();
+                // labels.extend(self.static_labels.clone());
+
+                let mut labels = self.static_labels.clone();
+                labels.extend(s.labels.clone());
 
                 new_samples.push(Sample {
                     labels,
@@ -289,6 +292,151 @@ impl<K: ToMetricDef> RenderIntoMetrics for BTreeMap<K, Vec<Sample>> {
 
         all_metrics.join("\n")
     }
+}
+
+impl<K: ToMetricDef> MetricStore<K> {
+    pub fn render_into_metrics2(&self, namespace: Option<&str>) -> String {
+        let mut all_metrics: Vec<String> = Vec::with_capacity(self.samples.len());
+
+        for (m, samples) in &self.samples {
+            let metric_def = m.to_metric_def();
+            let metric_name = format_metric_name(namespace, metric_def.name.as_ref());
+
+            let mut metrics = Vec::with_capacity(samples.len());
+
+            for s in samples {
+                let mut labels = self.static_labels.clone();
+                labels.extend(s.labels.clone());
+
+                let rendered = format!(
+                    "{}{{{}}} {}",
+                    metric_name,
+                    labels.render(),
+                    s.value.render()
+                );
+
+                metrics.push(rendered);
+            }
+
+            let rendered = format!(
+                "# HELP {} {}\n# TYPE {} {}\n{}\n",
+                metric_name,
+                metric_def.help,
+                metric_name,
+                metric_def.metric_type,
+                metrics.join("\n")
+            );
+
+            all_metrics.push(rendered);
+        }
+
+        all_metrics.join("\n")
+    }
+}
+
+fn format_metric_name(namespace: Option<&str>, name: &str) -> String {
+    match namespace {
+        Some(ns) => format!("{}_{}", ns, name),
+        None => name.to_string(),
+    }
+}
+
+use std::collections::HashMap;
+
+// If you control the Labels type, make it more efficient
+// pub struct Labels {
+//     inner: HashMap<String, String>,
+// }
+
+impl Labels {
+    // Iterator-based rendering avoids all cloning
+    pub fn render_combined<'a>(
+        static_labels: &'a HashMap<String, String>,
+        sample_labels: &'a HashMap<String, String>,
+        buffer: &mut String,
+    ) {
+        let mut needs_comma = false;
+
+        // Write static labels first
+        for (key, value) in static_labels {
+            if needs_comma {
+                buffer.push(',');
+            }
+            buffer.push_str(key);
+            buffer.push_str("=\"");
+            buffer.push_str(value);
+            buffer.push('"');
+            needs_comma = true;
+        }
+
+        // Write sample labels, skipping any that conflict with static
+        for (key, value) in sample_labels {
+            if !static_labels.contains_key(key) {
+                if needs_comma {
+                    buffer.push(',');
+                }
+                buffer.push_str(key);
+                buffer.push_str("=\"");
+                buffer.push_str(value);
+                buffer.push('"');
+                needs_comma = true;
+            }
+        }
+    }
+}
+
+impl<K: ToMetricDef> MetricStore<K> {
+    pub fn render_zero_alloc(&self, namespace: Option<&str>) -> String {
+        let estimated_size = self.estimate_output_size(namespace);
+        let mut buffer = String::with_capacity(estimated_size);
+
+        for (m, samples) in &self.samples {
+            let metric_def = m.to_metric_def();
+
+            // Build metric name parts once
+            let metric_name_parts = (namespace, &metric_def.name);
+
+            // HELP line
+            buffer.push_str("# HELP ");
+            write_metric_name(&mut buffer, metric_name_parts);
+            buffer.push(' ');
+            buffer.push_str(&metric_def.help);
+            buffer.push('\n');
+
+            // TYPE line
+            buffer.push_str("# TYPE ");
+            write_metric_name(&mut buffer, metric_name_parts);
+            buffer.push(' ');
+            buffer.push_str(&metric_def.metric_type);
+            buffer.push('\n');
+
+            // Samples
+            for s in samples {
+                write_metric_name(&mut buffer, metric_name_parts);
+                buffer.push('{');
+
+                // Zero-allocation label rendering
+                Labels::render_combined(&self.static_labels, &s.labels, &mut buffer);
+
+                buffer.push_str("} ");
+                buffer.push_str(&s.value.render());
+                buffer.push('\n');
+            }
+
+            buffer.push('\n');
+        }
+
+        buffer
+    }
+}
+
+#[inline]
+fn write_metric_name(buffer: &mut String, parts: (Option<&str>, &str)) {
+    if let Some(ns) = parts.0 {
+        buffer.push_str(ns);
+        buffer.push('_');
+    }
+    buffer.push_str(parts.1);
 }
 
 #[cfg(test)]
